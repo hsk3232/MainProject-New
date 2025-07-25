@@ -19,25 +19,29 @@ import edu.pnu.dto.CsvFileListResponseDTO;
 import edu.pnu.exception.CsvFileNotFoundException;
 import edu.pnu.exception.CsvFilePathNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CsvLogService {
 	
 	private final CsvRepository csvRepo;
 
-	
-    public Resource loadCsvResource(Long fileLogId) {
-    	 Csv csv = csvRepo.findById(fileLogId)
-    			 .orElseThrow(() -> new CsvFileNotFoundException("[오류] : [CsvLogService] 조회된 파일이 없음 (id=" + fileLogId + ")"));
+	//DownLoad 위한 메서드
+    public Resource loadCsvResource(Long fileId) {
+    	log.info("[진입] : [CsvLogService] ");
+    	
+    	 Csv csv = csvRepo.findById(fileId)
+    			 .orElseThrow(() -> new CsvFileNotFoundException("[오류] : [CsvLogService] 조회된 파일이 없음 (id=" + fileId + ")"));
 
          try {
-             Path filePath = Paths.get(csv.getFilePath());
+        	 Path filePath = Paths.get(csv.getFilePath(), csv.getFileName());
              Resource resource = new UrlResource(filePath.toUri());
              if (resource.exists() && resource.isReadable()) {
                  return resource;
              } else {
-                 throw new CsvFilePathNotFoundException("[오류] : [CsvLogService] 파일을 읽을 수 없음 (id= " + fileLogId + ")");
+                 throw new CsvFilePathNotFoundException("[오류] : [CsvLogService] 파일을 읽을 수 없음 (id= " + fileId + ")");
              }
          } catch (MalformedURLException e) {
         	 throw new CsvFilePathNotFoundException(

@@ -1,8 +1,13 @@
 package edu.pnu.service.csv;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -37,6 +42,7 @@ import edu.pnu.domain.Member;
 import edu.pnu.domain.Product;
 import edu.pnu.exception.BadRequestException;
 import edu.pnu.exception.CsvFileNotFoundException;
+import edu.pnu.exception.CsvFileSaveToDiskException;
 import edu.pnu.exception.FileUploadException;
 import edu.pnu.exception.InvalidCsvFormatException;
 import edu.pnu.service.datashare.DataShareService;
@@ -85,7 +91,7 @@ public class CsvSaveService {
 			statisticsAdminService.processAllStatistics(fileId, userId);
 
 			// Step 4: 완료 알림
-			webSocketService.sendMessage(userId, "모든 처리가 완료되었습니다!");
+			webSocketService.sendMessage(userId, "분석 및 통계 생성이 완료되었습니다!");
 			log.info("[완료] 파일 ID {} 전체 처리 완료", fileId);
 
 		} catch (Exception e) {
@@ -118,7 +124,7 @@ public class CsvSaveService {
 		
 		
 		// [2] 업로드 파일 정보 저장 (Csv 로그 엔티티)
-		Csv csvLog = Csv.builder().fileName(file.getOriginalFilename()).filePath("c:/MainProject/save_csv")
+		Csv csvLog = Csv.builder().fileName(file.getOriginalFilename()).filePath("C:/workspace/MainProject/save_csv")
 				.fileSize(file.getSize()).member(member).build();
 
 		csvLog = csvRepo.save(csvLog); // 엔티티에 저장 완료
@@ -392,6 +398,30 @@ public class CsvSaveService {
 				log.error("[오류] : [CsvSaveService] void parseAndStoreChunk 저장 오류 " + e.getMessage());
 			}
 		}
+	}
+	
+	public void storeFileToDisk(MultipartFile file, Csv csvLog) {
+	    try {
+	        // 1. 저장할 디렉토리 경로 객체 생성
+	        Path directoryPath = Paths.get(csvLog.getFilePath());
+
+	        // 2. 폴더가 없으면 생성
+	        if (!Files.exists(directoryPath)) {
+	            Files.createDirectories(directoryPath);
+	        }
+
+	        // 3. 전체 경로 = 디렉토리 + 파일명
+	        Path fullPath = directoryPath.resolve(csvLog.getFileName());
+
+	        // 4. 파일 저장
+	        Files.copy(file.getInputStream(), fullPath, StandardCopyOption.REPLACE_EXISTING);
+
+	        log.info("[성공] 파일 저장 완료: " + fullPath.toAbsolutePath());
+
+	    } catch (IOException e) {
+	        System.err.println("[오류] 파일 저장 실패: " + e.getMessage());
+	        throw new CsvFileSaveToDiskException("파일 저장 중 오류 발생");
+	    }
 	}
 
 

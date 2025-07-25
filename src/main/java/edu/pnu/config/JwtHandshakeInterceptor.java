@@ -1,6 +1,6 @@
 package edu.pnu.config;
 
-import java.util.List;
+import java.util.Arrays;
 import java.util.Map;
 
 import org.springframework.http.server.ServerHttpRequest;
@@ -28,15 +28,24 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 		System.out.println("[진입] : [JwtHandshakeInterceptor] WebSocket 사용을 위한 인증 객체 진입 ");
 		
 		   // 1. 헤더에서 JWT 추출
-	    List<String> authHeaders = request.getHeaders().get("Authorization");
-	    if (authHeaders != null && !authHeaders.isEmpty()) {
-	        String token = authHeaders.get(0).replace("Bearer ", "");
-	        
+		 // 1. 쿼리스트링에서 토큰 추출
+	    String query = request.getURI().getQuery();
+	    String token = null;
+	    if (query != null && query.contains("token=")) {
+	        token = Arrays.stream(query.split("&"))
+	                      .filter(q -> q.startsWith("token="))
+	                      .findFirst()
+	                      .map(q -> q.substring("token=".length()))
+	                      .orElse(null);
+	    }
+		
+		
+	    if (token != null && !token.isEmpty()) {
 	        String userId = JWT.require(Algorithm.HMAC256("edu.pnu.jwt"))
-                    .build()
-                    .verify(token)
-                    .getClaim("userId")
-                    .asString();
+	                .build()
+	                .verify(token)
+	                .getClaim("userId")
+	                .asString();
 	        
 	        // 2. 내 서비스로 유저 정보 조회
 	        CustomUserDetails userDetails = (CustomUserDetails) userDetailsService.loadUserByUsername(userId);

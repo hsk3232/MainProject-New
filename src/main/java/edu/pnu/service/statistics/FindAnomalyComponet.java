@@ -4,7 +4,7 @@ public class FindAnomalyComponet implements StatisticsInterface {
 
 	@Override
 	public String getProcessorName() {
-		return "이상 종류 판별기";
+		return "이상 종류 판별";
 	}
 
 	@Override

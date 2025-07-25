@@ -42,6 +42,7 @@ public class SecurityConfig {
 		
 		http.authorizeHttpRequests(auth -> auth
 				.requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+				.requestMatchers("/webSocket/**").permitAll()
 				.requestMatchers("/api/public/**").permitAll()
 				.requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 				.requestMatchers("/api/manager/**").hasAnyRole("MANAGER", "ADMIN")
@@ -91,7 +92,7 @@ public class SecurityConfig {
 		config.addAllowedOriginPattern("http://localhost:3000"); // 요청을 허용할 서버
 		// [분석가 서버] 요청을 허용할 주소
 		config.addAllowedOriginPattern("http://10.125.121.177:8000/api/v1/barcode-anomaly-detect");
-		
+
 		config.addAllowedMethod(CorsConfiguration.ALL); // 요청을 허용할 Method
 		config.addAllowedHeader(CorsConfiguration.ALL); // 요청을 허용할 Header
 		config.setAllowCredentials(true); // 요청/응답에 자격증명정보/쿠키 포함을 허용

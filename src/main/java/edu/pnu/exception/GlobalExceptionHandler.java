@@ -34,6 +34,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body("파일을 찾을 수 없습니다: " + ex.getMessage());
     }
+    
+    @ExceptionHandler(CsvFileSaveToDiskException.class)
+    public ResponseEntity<String> handleCsvFileSaveToDiskFound(CsvFileSaveToDiskException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body("파일을 저장할 수 없습니다: " + ex.getMessage());
+    }
+    
+    
     //  4. 파일 접근 권한 예외
     @ExceptionHandler(FileAccessDeniedException.class)
     public ResponseEntity<String> handleAccessDenied(FileAccessDeniedException ex) {

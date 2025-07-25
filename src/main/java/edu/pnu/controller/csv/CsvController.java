@@ -26,6 +26,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import edu.pnu.config.CustomUserDetails;
 import edu.pnu.dto.CsvFileListResponseDTO;
+import edu.pnu.exception.NoDataFoundException;
 import edu.pnu.service.csv.CsvLogService;
 import edu.pnu.service.csv.CsvSaveService;
 import edu.pnu.service.datashare.DataShareService;
@@ -71,7 +72,7 @@ public class CsvController {
 	        } catch (Exception e) {
 	            // 비동기 에러는 WebSocket으로만 처리
 	            webSocketService.sendMessage(userId, "처리 중 오류 발생: " + e.getMessage());
-	            log.error("[오류] 비동기 처리 실패: {}", e.getMessage(), e);
+	            log.error("[오류] 비동기 처리 실패: {}", e.getMessage(), e + "\n");
 	        }
 		});
 
@@ -84,7 +85,8 @@ public class CsvController {
 		@GetMapping("/upload/filelist")
 		public Map<String, Object> getFileListByCursor(@RequestParam(required = false) Long cursor,
 				@RequestParam(defaultValue = "50") int size, @RequestParam(required = false) String search) {
-
+			
+			log.info("[진입] : [CsvController] fileList 조회 진입");
 			List<CsvFileListResponseDTO> data = csvLogService.getFileListByCursor(cursor, size, search);
 
 			// nextCursor(다음 커서값) 계산
@@ -97,20 +99,24 @@ public class CsvController {
 			response.put("data", data);
 			// 방금 계산한 커서값(또는 null)을 Map에 저장
 			response.put("nextCursor", nextCursor);
-
+			
+			if(response.isEmpty()) {
+				throw new NoDataFoundException("[오류] : [CsvController] fileList가 비었음.");
+			}
+			log.info("[완료] : [CsvController] fileList 조회 완료 \n");
 			// 완성된 Map을 응답으로 리턴
 			return response;
 		}
 
 
 
-	@GetMapping("/download/{fileLogId}")
-	public ResponseEntity<Resource> downloadCsv(@PathVariable Long fileLogId,
+	@GetMapping("/download/{fileId}")
+	public ResponseEntity<Resource> downloadCsv(@PathVariable Long fileId,
 			@AuthenticationPrincipal CustomUserDetails user) {
 		// 필요 시: user와 파일의 접근 권한 체크도 서비스에서 처리할 수 있음
 		
-		Resource resource = csvLogService.loadCsvResource(fileLogId);
-		String filename = csvLogService.getFileName(fileLogId);
+		Resource resource = csvLogService.loadCsvResource(fileId);
+		String filename = csvLogService.getFileName(fileId);
 
 		return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
 				.body(resource);
@@ -121,21 +127,25 @@ public class CsvController {
 	public String resendToAi(@PathVariable Long fileId) {
 		ExecutorService executor = Executors.newSingleThreadExecutor();
 		try {
+			log.info("[진입] : [CsvController] 재전송 진입");
 	        Future<Void> future = executor.submit(() -> {
 	            dataShareService.sendDataAndSaveResult(fileId);
+	            log.info("[성공]: [CsvController] 재전송 성공 \n");
 	            return null;
 	        });
 	        future.get(5, TimeUnit.SECONDS); // 5초 타임아웃
 	        return "AI 모듈로 재전송 성공!";
 	    } catch (TimeoutException e) {
+	    	log.error("[오류] : [CsvController] 재전송 타임 아웃");
 	        throw new ResponseStatusException(
 	            HttpStatus.REQUEST_TIMEOUT,
-	            "AI 모듈로 재전송 시간이 너무 오래 걸려 중단되었습니다. 다시 시도해주세요."
+	            "AI 모듈로 재전송 시간이 너무 오래 걸려 중단되었습니다. 다시 시도해주세요. \n"
 	        );
 	    } catch (Exception e) {
+	    	log.error("[오류] : [CsvController] 재전송 오류");
 	        throw new ResponseStatusException(
 	            HttpStatus.INTERNAL_SERVER_ERROR,
-	            "AI 모듈로 재전송 중 알 수 없는 오류가 발생했습니다."
+	            "AI 모듈로 재전송 중 알 수 없는 오류가 발생했습니다. \n"
 	        );
 	    } finally {
 	        executor.shutdownNow();
