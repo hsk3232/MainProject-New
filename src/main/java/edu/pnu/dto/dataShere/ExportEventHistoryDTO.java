@@ -22,8 +22,6 @@ public class ExportEventHistoryDTO {
     private String eventType;
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime eventTime;
-//    private String epcProduct;
-//    private String productName;
     private Long fileId;
 
     public static ExportEventHistoryDTO fromEntity(EventHistory h) {
@@ -33,8 +31,6 @@ public class ExportEventHistoryDTO {
             .businessStep(h.getBusinessStep())
             .eventType(h.getEventType())
             .eventTime(h.getEventTime())
-//            .epcProduct(h.getEpc().getProduct().getEpcProduct())
-//            .productName(h.getEpc().getProduct().getProductName())
             .fileId(h.getCsv().getFileId())
             .build();
     }

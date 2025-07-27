@@ -21,11 +21,8 @@ import edu.pnu.config.DataShareProperties;
 import edu.pnu.domain.Csv;
 import edu.pnu.domain.EventHistory;
 import edu.pnu.dto.dataShere.ExportDataToAiDTO;
-import edu.pnu.dto.dataShere.ImportAiDataDTO;
 import edu.pnu.dto.dataShere.ImportDatafromAiDTO;
 import edu.pnu.exception.NoDataFoundException;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,9 +38,8 @@ public class DataShareService {
 	private final CsvRepository csvRepo;
 //	private final FileAnomalyStatsRepository fileAnomalyStatsRepo;
 	private final DataShareProperties props; // 주입된 커스텀 설정 클래스
-
-	@PersistenceContext
-	private EntityManager em;
+	 private final DataApplyService dataApplyService;
+	
 	
 //	 ■■■■■■■■■■■■■ 외부 트리거 진입점 ■■■■■■■■■■■■■■
 
@@ -154,7 +150,7 @@ public class DataShareService {
 
 			if (importData != null) {
 				try {
-					applyAnomalyResult(importData);
+					dataApplyService.applyAnomalyResult(importData);
 					successCount += batch.size();
 					sent += batch.size();
 					log.info("[성공][{}] 분석 결과 저장 완료 ({}건)", batchIndex, batch.size());
@@ -229,28 +225,46 @@ public class DataShareService {
 	}
 
 
-	// ■■■■■■■■■■■■■■■■ 결과 반영 (DB 업데이트) ■■■■■■■■■■■■■■■■
-	@Transactional
-	public void applyAnomalyResult(ImportDatafromAiDTO importData) {
-		log.info("[진입] : [DataShareService] AI로부터 받은 이상치 결과 DB 반영 시작");
+	@Transactional(readOnly = true)
+	public ImportDatafromAiDTO sendAndReceiveFromAi(Long fileId) {
+	    List<ExportDataToAiDTO> dtoList = exportByFileId(fileId);
 
-		if (importData.getImportAiDataList() != null) {
-			List<ImportAiDataDTO> dtoList = importData.getImportAiDataList();
+	    if (dtoList.isEmpty()) {
+	        throw new NoDataFoundException("[DataShareService] 전송할 데이터가 없습니다 (fileId=" + fileId + ")");
+	    }
 
-			log.info("[진행] : [DataShareService] AiData 업데이트 대상 건수 = {}", dtoList.size());
+	    log.info("[진행] : AI 전송 대상 DTO {}건 생성 완료", dtoList.size());
 
-			// [1-1] eventId 목록 추출
-			List<Long> eventIds = dtoList.stream().map(ImportAiDataDTO::getEventId).toList();
+	    // ↓ 이 부분은 기존 sendToAiAndSave()의 전송 파트만 가져옴
+	    int connectTimeout = props.getRestConnectTimeout();
+	    int readTimeout = props.getRestReadTimeout();
+	    String aiApiUrl = props.getAiApiUrl();
 
-			// 여기서 bulk update으로 한번에 저장
-	        int updatedCount = eventHistoryRepo.bulkUpdatseAnomaly(eventIds);
-	        em.clear(); // 영속성 컨텍스트 비우기
+	    SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+	    factory.setConnectTimeout(connectTimeout);
+	    factory.setReadTimeout(readTimeout);
+	    RestTemplate restTemplate = new RestTemplate(factory);
 
-	        log.info("[완료] anomaly 업데이트 적용 ({}건), 영속성 컨텍스트 clear!", updatedCount);
+	    HttpHeaders headers = new HttpHeaders();
+	    headers.setContentType(MediaType.APPLICATION_JSON);
 
+	    Map<String, Object> requestBody = new HashMap<>();
+	    requestBody.put("data", dtoList);
+	    HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
 
-		
-		}
+	    try {
+	        ResponseEntity<ImportDatafromAiDTO> response =
+	            restTemplate.postForEntity(aiApiUrl, request, ImportDatafromAiDTO.class);
+
+	        if (response.getStatusCode().is2xxSuccessful()) {
+	            return response.getBody();
+	        } else {
+	            throw new RuntimeException("[AI 응답 오류] 상태 코드: " + response.getStatusCode());
+	        }
+
+	    } catch (Exception e) {
+	        throw new RuntimeException("[AI 서버 전송 실패] " + e.getMessage(), e);
+	    }
 	}
 
 }

@@ -2,6 +2,7 @@ package edu.pnu.domain;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -16,6 +17,7 @@ import lombok.ToString;
 @ToString
 @Entity
 @Builder
+@Table(name ="assetproduct")
 public class AssetProduct {
 	@Id // 고유한 값임으로 AI 필요 없음
 	private String epcProduct; // 상품코드

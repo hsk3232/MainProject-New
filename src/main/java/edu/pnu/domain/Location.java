@@ -20,6 +20,8 @@ public class Location {
 	@Id
 	private Long locationId;
 	private String scanLocation;
+	private double latitude;
+	private double longitude;
 	
 	private Long operatorId;
 	private Long deviceId;

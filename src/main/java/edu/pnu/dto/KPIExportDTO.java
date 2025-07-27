@@ -16,7 +16,7 @@ import lombok.ToString;
 @Builder
 public class KPIExportDTO {
 	
-	private Long KpiId;
+	private Long kpiId;
 	
     
     // 필터 조건 내에서 발견된 총 이상 징후 발생 건수n
@@ -66,6 +66,7 @@ public class KPIExportDTO {
     			.inventoryRate(k.getInventoryRate())
     			.avgLeadTime(k.getAvgLeadTime())
     			.fileId(k.getCsv().getFileId())
+    			.kpiId(k.getKpiId())
     			.build();
     }
 }

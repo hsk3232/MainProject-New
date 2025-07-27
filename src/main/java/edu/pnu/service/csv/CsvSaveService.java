@@ -42,11 +42,13 @@ import edu.pnu.domain.EventHistory;
 import edu.pnu.domain.Location;
 import edu.pnu.domain.Member;
 import edu.pnu.domain.Product;
+import edu.pnu.dto.dataShere.ImportDatafromAiDTO;
 import edu.pnu.exception.BadRequestException;
 import edu.pnu.exception.CsvFileNotFoundException;
 import edu.pnu.exception.CsvFileSaveToDiskException;
 import edu.pnu.exception.FileUploadException;
 import edu.pnu.exception.InvalidCsvFormatException;
+import edu.pnu.service.datashare.DataApplyService;
 import edu.pnu.service.datashare.DataShareService;
 import edu.pnu.service.statistics.StatisticsAdminService;
 import edu.pnu.websocket.WebSocketService;
@@ -71,6 +73,7 @@ public class CsvSaveService {
 	private final CsvSaveBatchService csvSaveBatchService; // JdbcTemplate batch insert
 	private final DataShareService dataShareService;
 	private final WebSocketService webSocketService;
+	private final DataApplyService dataApplyService;
 
 	private final int chunkSize = 1000; // 한 번에 읽어 처리할 row 수 (청크 단위)
 	
@@ -90,7 +93,10 @@ public class CsvSaveService {
 			// Step 2: AI 서버로 데이터 전송 및 분석
 			webSocketService.sendMessage(userId, "AI 분석 중 (시간이 걸릴 수 있습니다)");
 			dataShareService.sendDataAndSaveResult(fileId);
-
+			
+			ImportDatafromAiDTO result = dataShareService.sendAndReceiveFromAi(fileId);
+			dataApplyService.applyAnomalyResult(result);
+			
 			// Step 3: 통계 생성
 			webSocketService.sendMessage(userId, "통계 데이터 생성 중");
 			statisticsAdminService.processAllStatistics(fileId, userId);
@@ -176,13 +182,25 @@ public class CsvSaveService {
 			DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 			DateTimeFormatter ymdFormatter = DateTimeFormatter.ofPattern("yyyyMMdd");
 
-			// 1. DB에 이미 있는 PK만 미리 모두 Set으로 뽑아둠
-			Set<Long> existLocationIds = locationRepo.findAllPK(); // location_id만
-			Set<String> existProductIds = productRepo.findAllPK();
-			Set<String> existEpcCodes = epcRepo.findAllPK();
-
+			// 1. DB에 이미 있는 location_id
+			Set<Long> existLocationIds = locationRepo.findAllPK();
 			Set<Long> insertedLocations = new HashSet<>(existLocationIds);
-			Set<String> insertedProducts = new HashSet<>(existProductIds);
+
+			// 2. DB에 이미 있는 Product 복합키 조합
+			Set<String> insertedProducts = new HashSet<>();
+
+			// ProductKey → productId 맵 생성
+			Map<String, Long> productKeyToIdMap = new HashMap<>();
+			List<Object[]> rows = productRepo.findAllProductKeyIdMap();
+			for (Object[] row : rows) {
+			    String key = row[0] + "|" + row[1] + "|" + row[2];
+			    Long productId = (Long) row[3];
+			    productKeyToIdMap.put(key, productId);
+			    insertedProducts.add(key); // 중복 방지용
+			}
+
+			// 3. DB에 이미 있는 EPC 코드
+			Set<String> existEpcCodes = epcRepo.findAllPK(); // ★ 이 메서드가 Set<String>을 반환
 			Set<String> insertedEPCs = new HashSet<>(existEpcCodes);
 
 			// [8] chunk 단위로 파일을 읽으며, 파싱/저장/검증 진행
@@ -202,8 +220,11 @@ public class CsvSaveService {
 					List<Epc> epcs = new ArrayList<>();
 					List<EventHistory> events = new ArrayList<>();
 
-					parseAndStoreChunk(chunk, colIdx, csvLog, dtf, ymdFormatter, insertedLocations, insertedProducts,
-							insertedEPCs, locations, products, epcs, events, errorRows, rowNum - chunk.size() + 1);
+					parseAndStoreChunk(chunk, colIdx, csvLog, dtf, ymdFormatter,
+						    insertedLocations, insertedProducts, insertedEPCs,
+						    locations, products, epcs, events,
+						    errorRows, rowNum - chunk.size() + 1,
+						    productKeyToIdMap);
 
 					try {
 						// chunkSize에 도달할 때마다 batch insert
@@ -248,8 +269,11 @@ public class CsvSaveService {
 				List<Product> products = new ArrayList<>();
 				List<Epc> epcs = new ArrayList<>();
 				List<EventHistory> events = new ArrayList<>();
-				parseAndStoreChunk(chunk, colIdx, csvLog, dtf, ymdFormatter, insertedLocations, insertedProducts,
-						insertedEPCs, locations, products, epcs, events, errorRows, rowNum - chunk.size() + 1);
+				parseAndStoreChunk(chunk, colIdx, csvLog, dtf, ymdFormatter,
+					    insertedLocations, insertedProducts, insertedEPCs,
+					    locations, products, epcs, events,
+					    errorRows, rowNum - chunk.size() + 1,
+					    productKeyToIdMap);
 				// 파싱해서 리스트로 변환 및 중복 방지 세트 갱신
 
 				try {
@@ -300,7 +324,7 @@ public class CsvSaveService {
 			// [11] 오류 리포트 출력 및 예외 처리
 			if (!errorRows.isEmpty()) {
 				StringBuilder report = new StringBuilder("[CSV 저장 전체 오류 요약]\n");
-				errorRows.forEach((type, rows) -> {
+				errorRows.forEach((type, errorRowList) -> {
 					report.append("오류[").append(type).append("]: ").append(rows.size()).append("건 rows: ").append(rows)
 							.append("\n");
 				});
@@ -325,7 +349,8 @@ public class CsvSaveService {
 	private void parseAndStoreChunk(List<String[]> chunk, Map<String, Integer> colIdx, Csv csvLog,
 			DateTimeFormatter dtf, DateTimeFormatter ymdFormatter, Set<Long> insertedLocations,
 			Set<String> insertedProducts, Set<String> insertedEPCs, List<Location> locations, List<Product> products,
-			List<Epc> epcs, List<EventHistory> events, Map<String, List<Integer>> errorRows, int startRowNum) {
+			List<Epc> epcs, List<EventHistory> events, Map<String, List<Integer>> errorRows, int startRowNum,
+		    Map<String, Long> productKeyToIdMap) {
 
 		for (int i = 0; i < chunk.size(); i++) {
 			String[] row = chunk.get(i);
@@ -350,30 +375,42 @@ public class CsvSaveService {
 				}
 
 				// === [중복 INSERT 방지: DB+파일 모두] ===
+				// === Location 저장 ===
 				if (!insertedLocations.contains(locId)) {
 					locations.add(
-							Location.builder()
-									.locationId(locId)
-									.scanLocation(getValue(colIdx, row, "scan_location"))
-									.latitude(parseDoubleSafe(getValue(colIdx, row, "latitude")))
-									.longitude(parseDoubleSafe(getValue(colIdx, row, "longitude")))
-									.operatorId(parseLongSafe(getValue(colIdx, row, "operator_id")))
-									.deviceId(parseLongSafe(getValue(colIdx, row, "device_id")))
-									.build());
+						Location.builder()
+							.locationId(locId)
+							.scanLocation(getValue(colIdx, row, "scan_location"))
+							.latitude(parseDoubleSafe(getValue(colIdx, row, "latitude")))
+							.longitude(parseDoubleSafe(getValue(colIdx, row, "longitude")))
+							.operatorId(parseLongSafe(getValue(colIdx, row, "operator_id")))
+							.deviceId(parseLongSafe(getValue(colIdx, row, "device_id")))
+							.build());
 				}
 				insertedLocations.add(locId);
+				
+				// === Product 저장 ===
+				String epcCompany = getValue(colIdx, row, "epc_company");
+				String productName = getValue(colIdx, row, "product_name");
 
-				if (!insertedProducts.contains(prodId)) {
-					products.add(
-							Product.builder()
-									.epcProduct(prodId)
-									.epcCompany(getValue(colIdx, row, "epc_company"))
-									.productName(getValue(colIdx, row, "product_name"))					
-									.build());
+				// 중복 체크를 위한 복합 키 생성 (epc_product|epc_company|product_name)
+				String productKey = prodId + "|" + epcCompany + "|" + productName;
+				if (!insertedProducts.contains(productKey)) {
+				    products.add(Product.builder()
+				        .epcProduct(prodId)
+				        .epcCompany(epcCompany)
+				        .productName(productName)
+				        .build());
 				}
-				insertedProducts.add(prodId);
+				insertedProducts.add(productKey);
 
+			
+				
+				// === EPC 저장 ===
 				if (!insertedEPCs.contains(epcCode)) {
+					
+					Long productId = productKeyToIdMap.get(productKey);
+					
 					epcs.add(
 							Epc.builder()
 								.epcCode(epcCode)
@@ -382,7 +419,7 @@ public class CsvSaveService {
 								.epcLot(getValue(colIdx, row, "epc_lot"))
 								.epcSerial(getValue(colIdx, row, "epc_serial"))
 								.location(Location.builder().locationId(locId).build())
-								.product(Product.builder().epcProduct(prodId).build())
+								.product(Product.builder().productId(productId).build())
 								.manufactureDate(tryParseDateTime(getValue(colIdx, row, "manufacture_date"), dtf, errorRows,
 										currentRow, "manufacture_date"))
 								.expiryDate(tryParseDate(getValue(colIdx, row, "expiry_date"), ymdFormatter, errorRows,
@@ -516,6 +553,11 @@ public class CsvSaveService {
 		if (input.contains("pos"))
 			return "POS";
 		return null;
+	}
+	
+	private boolean safeEquals(String a, String b) {
+		if (a == null) return b == null;
+		return a.trim().equalsIgnoreCase(b != null ? b.trim() : "");
 	}
 
 }

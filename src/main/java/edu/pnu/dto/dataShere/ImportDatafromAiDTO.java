@@ -12,7 +12,7 @@ import lombok.Setter;
 
 public class ImportDatafromAiDTO {
     private Long fileId;
-    private List<ImportAiDataDTO> ImportAiDataList;
+    private List<ImportAiDataDTO> eventHistory;
 
 
 }

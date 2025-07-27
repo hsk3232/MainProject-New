@@ -29,34 +29,57 @@ public interface EventHistoryRepository extends JpaRepository<EventHistory, Long
 	// epcCode별 이벤트 시간순 정렬
 	List<EventHistory> findByEpc_EpcCodeOrderByEventTimeAsc(String epcCode);
 
-	@Query("SELECT e FROM EventHistory e " +
-		       "JOIN FETCH e.epc ep " +
-		       "JOIN FETCH ep.product " +
-		       "WHERE e.csv.fileId = :fileId")
-		List<EventHistory> findAllByCsv_FileIdWithEpcAndProduct(@Param("fileId") Long fileId);
+	@Query("SELECT e FROM EventHistory e " + "JOIN FETCH e.epc ep " + "JOIN FETCH ep.product "
+			+ "WHERE e.csv.fileId = :fileId")
+	List<EventHistory> findAllByCsv_FileIdWithEpcAndProduct(@Param("fileId") Long fileId);
 
 	Optional<EventHistory> findFirstByLocationOrderByEventTimeDesc(Location l);
 
 	List<EventHistory> findAllByOrderByEpc_EpcCodeAscEventTimeAsc();
-	
-	 @Modifying
-	 @Query("UPDATE EventHistory e SET e.anomaly = true WHERE e.eventId IN :ids")
-	    int bulkUpdatseAnomaly(@Param("ids") List<Long> ids);
-	
+
+	@Modifying
+	@Query("UPDATE EventHistory e SET e.anomaly = true WHERE e.eventId IN :ids")
+	int bulkUpdatseAnomaly(@Param("ids") List<Long> ids);
 
 	List<EventHistory> findByEventIdIn(List<Long> eventId); // eventId 컬럼이 eventIds 리스트에 포함되는 것만 검색
 
 	@Query(value = """
-			  SELECT
-			    COUNT(*) AS totalTripCount,
-			    COUNT(DISTINCT e.epc_product) AS uniqueProductCount,
-			    SUM(CASE WHEN eh.business_step = 'Factory' THEN 1 ELSE 0 END) AS codeCount,
-			    COUNT(DISTINCT CASE WHEN eh.anomaly = true THEN eh.event_id END) AS anomalyCount,
-			    COUNT(DISTINCT CASE WHEN eh.event_type = 'pos_sell' THEN eh.epc_code END) AS salesCount
-			  FROM eventhistory eh
-			  LEFT JOIN epc e ON eh.epc_code = e.epc_code
-			  WHERE eh.file_id = :fileId
-			""", nativeQuery = true)
-	Map<String, Object> getKpiAggregates(@Param("fileId") Long fileId);
-	
+		    SELECT
+		        -- 전체 trip 수
+		        COUNT(*) AS totalTripCount,
+
+		        -- 제품 종류 수
+		        COUNT(DISTINCT e.epc_product) AS uniqueProductCount,
+
+		        -- 공장에서 생성된 개수
+		        SUM(CASE WHEN eh.business_step = 'Factory' THEN 1 ELSE 0 END) AS codeCount,
+
+		        -- 이상(anomaly = true) 이벤트 수
+		        COUNT(DISTINCT CASE WHEN eh.anomaly = true THEN eh.event_id END) AS anomalyCount,
+
+		        -- 판매(pos_sell) 처리된 EPC 수
+		        COUNT(DISTINCT CASE WHEN eh.event_type = 'pos_sell' THEN eh.epc_code END) AS salesCount,
+
+		        -- W_Stock 입고 건수
+		        COUNT(CASE WHEN eh.business_step = 'W_Stock_Inbound' THEN 1 END) AS warehouseIn,
+
+		        -- W_Stock 출고 건수
+		        COUNT(CASE WHEN eh.business_step = 'W_Stock_Outbound' THEN 1 END) AS warehouseOut,
+
+		        -- EPC별 리드타임 평균 (초 단위)
+		        (
+		            SELECT AVG(leadTimeSec) FROM (
+		                SELECT TIMESTAMPDIFF(SECOND, MIN(eh2.event_time), MAX(eh2.event_time)) AS leadTimeSec
+		                FROM eventhistory eh2
+		                WHERE eh2.file_id = :fileId
+		                GROUP BY eh2.epc_code
+		            ) AS leadTimeTable
+		        ) AS avgLeadTime
+
+		    FROM eventhistory eh
+		    LEFT JOIN epc e ON eh.epc_code = e.epc_code
+		    WHERE eh.file_id = :fileId
+		""", nativeQuery = true)
+		Map<String, Object> getKpiAggregates(@Param("fileId") Long fileId);
+
 }

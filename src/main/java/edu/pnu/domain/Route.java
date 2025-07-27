@@ -1,6 +1,5 @@
 package edu.pnu.domain;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -19,14 +18,16 @@ import lombok.ToString;
 @ToString
 @Entity
 @Builder
-public class Product {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY) // ✅ auto_increment에 맞는 설정
-    @Column(name = "product_id")
-    private Long productId;
-	private String epcProduct; // 상품코드
-	private String epcCompany; // 제조사 코드
-	private String productName; // 상품명
-	
-
+public class Route {
+    @Id 
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long roadId;
+    private String fromScanLocation;
+    private String toScanLocation;
+    private Long fromLocationId;
+    private Long toLocationId;
+    private String fromBusinessStep;
+    private String toBusinessStep;
+    private String fromEventType;
+    private String toEventType;
 }

@@ -46,7 +46,7 @@ public class Epc {
 	//N:1 여러개의 epc_code가 하나의 상품에 있을 수 있음.
 	//N:1에서 N은 자식이며, 관계의 주인!
 	@ManyToOne(fetch = FetchType.LAZY) // FK
-	@JoinColumn(name = "epc_product")
+	@JoinColumn(name = "epc_product", referencedColumnName = "epcProduct")
 	private Product product;
 	
 	private LocalDateTime manufactureDate;

@@ -17,11 +17,9 @@ public class StatisticsFindService {
 	
 	private final KPIAnalysisRepository kpiRepo;
 	
-	public List<KPIExportDTO> getKPIAnlaysis(Long fileId) {
-		List<KPIAnalysis> k = kpiRepo.findByCsv_FileId(fileId);
-		List<KPIExportDTO> dto = k.stream()
-				.map(KPIExportDTO::fromEntity)
-				.toList();
+	public KPIExportDTO getKPIAnlaysis(Long fileId) {
+		KPIAnalysis k = kpiRepo.findByCsv_FileId(fileId);
+		KPIExportDTO dto = KPIExportDTO.fromEntity(k);
 		return dto;
 	}
 	
