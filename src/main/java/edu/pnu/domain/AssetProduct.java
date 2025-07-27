@@ -16,11 +16,11 @@ import lombok.ToString;
 @ToString
 @Entity
 @Builder
-public class Location {
-	@Id
-	private Long locationId;
-	private String scanLocation;
+public class AssetProduct {
+	@Id // 고유한 값임으로 AI 필요 없음
+	private String epcProduct; // 상품코드
+	private String epcCompany; // 제조사 코드
+	private String productName; // 상품명
 	
-	private Long operatorId;
-	private Long deviceId;
+
 }

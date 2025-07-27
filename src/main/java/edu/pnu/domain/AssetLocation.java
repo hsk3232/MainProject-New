@@ -16,11 +16,13 @@ import lombok.ToString;
 @ToString
 @Entity
 @Builder
-public class Location {
+public class AssetLocation {
 	@Id
 	private Long locationId;
 	private String scanLocation;
 	
+	private double latitude;
+	private double longitude;
 	private Long operatorId;
 	private Long deviceId;
 }

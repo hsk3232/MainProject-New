@@ -36,7 +36,7 @@ public class CsvLogService {
     			 .orElseThrow(() -> new CsvFileNotFoundException("[오류] : [CsvLogService] 조회된 파일이 없음 (id=" + fileId + ")"));
 
          try {
-        	 Path filePath = Paths.get(csv.getFilePath(), csv.getFileName());
+        	 Path filePath = Paths.get(csv.getFilePath(), csv.getSavedFileName());
              Resource resource = new UrlResource(filePath.toUri());
              if (resource.exists() && resource.isReadable()) {
                  return resource;
@@ -47,6 +47,7 @@ public class CsvLogService {
         	 throw new CsvFilePathNotFoundException(
         			    "[오류] : [CsvLogService] 잘못된 파일 경로 (filePath= " + csv.getFilePath() + ")");
          }
+        
     }
     
     

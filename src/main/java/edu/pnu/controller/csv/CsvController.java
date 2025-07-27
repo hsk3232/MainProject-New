@@ -1,5 +1,7 @@
 package edu.pnu.controller.csv;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +34,7 @@ import edu.pnu.service.csv.CsvSaveService;
 import edu.pnu.service.datashare.DataShareService;
 import edu.pnu.websocket.WebSocketService;
 import jakarta.servlet.annotation.MultipartConfig;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -112,14 +115,29 @@ public class CsvController {
 
 	@GetMapping("/download/{fileId}")
 	public ResponseEntity<Resource> downloadCsv(@PathVariable Long fileId,
-			@AuthenticationPrincipal CustomUserDetails user) {
+			@AuthenticationPrincipal CustomUserDetails user, HttpServletRequest request) {
 		// 필요 시: user와 파일의 접근 권한 체크도 서비스에서 처리할 수 있음
 		
 		Resource resource = csvLogService.loadCsvResource(fileId);
 		String filename = csvLogService.getFileName(fileId);
 
-		return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-				.body(resource);
+		 // 한글/특수문자 인코딩
+	    String userAgent = request.getHeader("User-Agent");
+	    String encodedFileName;
+	    try {
+	        if (userAgent != null && (userAgent.contains("MSIE") || userAgent.contains("Trident") || userAgent.contains("Edge"))) {
+	            encodedFileName = URLEncoder.encode(filename, "UTF-8").replaceAll("\\+", "%20");
+	        } else {
+	            encodedFileName = new String(filename.getBytes(StandardCharsets.UTF_8), StandardCharsets.ISO_8859_1);
+	        }
+	    } catch (Exception e) {
+	        encodedFileName = "file.csv";
+	    }
+	    String contentDisposition = "attachment; filename=\"" + encodedFileName + "\"; filename*=UTF-8''" + URLEncoder.encode(filename, StandardCharsets.UTF_8);
+
+	    return ResponseEntity.ok()
+	            .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition)
+	            .body(resource);
 	}
 
 	

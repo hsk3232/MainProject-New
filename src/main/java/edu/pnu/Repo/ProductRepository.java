@@ -18,4 +18,6 @@ public interface ProductRepository extends JpaRepository<Product, String> {
 
 	// 고유 상품 종류 카운트
 	long count();
+	
+	
 }

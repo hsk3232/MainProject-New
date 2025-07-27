@@ -33,21 +33,16 @@ public class FileAnomalyStats {
 	private Csv csv;
 	
 	@Builder.Default
-	private int totalEvents = 0;
+	private int totalErrorCount = 0;
 	
 	@Builder.Default
-	private int jumpCount = 0;
+	private int fackCount = 0;
 	
 	@Builder.Default
-	private int evtOrderErrCount = 0;
+	private int tamperCount = 0;
 	
 	@Builder.Default
-	private int epcFakeCount = 0;
+	private int cloneCount = 0;
 	
-	@Builder.Default
-	private int epcDupCount = 0;
-	
-	@Builder.Default
-	private int locErrCount = 0;
 
 }

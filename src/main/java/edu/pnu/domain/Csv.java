@@ -32,9 +32,9 @@ public class Csv {
 	private Long fileId;
 
 	@Column(nullable = false)
-    private String fileName; // 실제 파일명
-
-    private String filePath; // 저장 경로
+    private String fileName;      // 업로드한 원본 파일명
+    private String savedFileName; // 실제 디스크에 저장되는 안전 파일명 (UUID+확장자)
+    private String filePath;      // 저장 경로
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id")

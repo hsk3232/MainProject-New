@@ -58,5 +58,5 @@ public interface EventHistoryRepository extends JpaRepository<EventHistory, Long
 			  WHERE eh.file_id = :fileId
 			""", nativeQuery = true)
 	Map<String, Object> getKpiAggregates(@Param("fileId") Long fileId);
-
+	
 }

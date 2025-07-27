@@ -18,7 +18,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -71,6 +73,9 @@ public class CsvSaveService {
 	private final WebSocketService webSocketService;
 
 	private final int chunkSize = 1000; // 한 번에 읽어 처리할 row 수 (청크 단위)
+	
+	@Value("${file.upload.dir}")
+    private String fileUploadDir;
 
 	// ■■■■■■■■■■■■■■■■■■■■■■■■■■■ [하이브리드 메서드 : 파이프 라인] ■■■■■■■■■■■■■■■■■■■■■■■■
 	// CSV 파일을 chunk 단위로 버퍼링해서 효율적으로 파싱 및 저장하는 메인 메서드
@@ -121,13 +126,23 @@ public class CsvSaveService {
 		if (!file.getOriginalFilename().endsWith(".csv"))
 			throw new FileUploadException("[오류] : [CsvSaveService] CSV 파일 아님");
 
+		// 1. 실제 저장용 파일명 생성
+		String originalFileName = file.getOriginalFilename();
+		String ext = "";
+		int idx = originalFileName.lastIndexOf(".");
+		if (idx > -1) ext = originalFileName.substring(idx);
+		String safeFileName = UUID.randomUUID().toString() + ext;
 		
-		
-		// [2] 업로드 파일 정보 저장 (Csv 로그 엔티티)
-		Csv csvLog = Csv.builder().fileName(file.getOriginalFilename()).filePath("C:/workspace/MainProject/save_csv")
-				.fileSize(file.getSize()).member(member).build();
-
-		csvLog = csvRepo.save(csvLog); // 엔티티에 저장 완료
+		// 2. Csv 엔티티 생성시, 원본명/저장명 모두 저장
+		Csv csvLog = Csv.builder()
+		    .fileName(originalFileName)   // 원본명
+		    .savedFileName(safeFileName)  // 저장명 (필드 추가 필요!)
+		    .filePath(fileUploadDir)
+		    .fileSize(file.getSize())
+		    .member(member)
+		    .build();
+		csvLog = csvRepo.save(csvLog);
+		storeFileToDisk(file, csvLog);
 
 		try (BufferedReader reader = new BufferedReader(
 				new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
@@ -400,6 +415,7 @@ public class CsvSaveService {
 		}
 	}
 	
+	// 파일 저장
 	public void storeFileToDisk(MultipartFile file, Csv csvLog) {
 	    try {
 	        // 1. 저장할 디렉토리 경로 객체 생성
@@ -411,7 +427,7 @@ public class CsvSaveService {
 	        }
 
 	        // 3. 전체 경로 = 디렉토리 + 파일명
-	        Path fullPath = directoryPath.resolve(csvLog.getFileName());
+	        Path fullPath = Paths.get(csvLog.getFilePath(), csvLog.getSavedFileName());
 
 	        // 4. 파일 저장
 	        Files.copy(file.getInputStream(), fullPath, StandardCopyOption.REPLACE_EXISTING);
