@@ -4,11 +4,11 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import edu.pnu.Repo.EventHistoryRepository;
-import edu.pnu.Repo.LocationRepository;
 import edu.pnu.domain.EventHistory;
 import edu.pnu.dto.NodeDTO;
 import edu.pnu.exception.NodeNotFoundException;
+import edu.pnu.repo.EventHistoryRepository;
+import edu.pnu.repo.LocationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

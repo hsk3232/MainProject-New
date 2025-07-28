@@ -6,9 +6,9 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import edu.pnu.Repo.MemberRepository;
 import edu.pnu.config.CustomUserDetails;
 import edu.pnu.domain.Member;
+import edu.pnu.repo.MemberRepository;
 import lombok.RequiredArgsConstructor;
 
 // --------------(DB에서 유저 찾기)----------//

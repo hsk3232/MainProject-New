@@ -3,10 +3,10 @@ package edu.pnu.service.member;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import edu.pnu.Repo.MemberRepository;
 import edu.pnu.domain.Member;
 import edu.pnu.dto.MemberJoinDTO;
 import edu.pnu.exception.BadRequestException;
+import edu.pnu.repo.MemberRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service

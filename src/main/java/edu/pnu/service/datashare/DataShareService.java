@@ -15,14 +15,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
-import edu.pnu.Repo.CsvRepository;
-import edu.pnu.Repo.EventHistoryRepository;
 import edu.pnu.config.DataShareProperties;
 import edu.pnu.domain.Csv;
 import edu.pnu.domain.EventHistory;
 import edu.pnu.dto.dataShere.ExportDataToAiDTO;
 import edu.pnu.dto.dataShere.ImportDatafromAiDTO;
 import edu.pnu.exception.NoDataFoundException;
+import edu.pnu.repo.CsvRepository;
+import edu.pnu.repo.EventHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -68,7 +68,7 @@ public class DataShareService {
 		List<ExportDataToAiDTO> dtoList = exportByFileId(fileId);
 
 		if (dtoList.isEmpty()) {
-			log.error("[경고] : [DataShareService] ExportRowDTO 리스트가 비어있음! (fileId=" + fileId + ")");
+			log.error("[경고] : [DataShareService] ExportDataToAiDTO 리스트가 비어있음! (fileId=" + fileId + ")");
 			return;
 		}
 
@@ -81,7 +81,7 @@ public class DataShareService {
 //	 ■■■■■■■■■■■■■  특정 파일 ID로 EventHistory 리스트를 DTO로 변환 (KPI 분석에서 사용) ■■■■■■■■■■■■■■
 	 @Transactional(readOnly = true) // 서비스 레이어에서 트랜잭션 보장 (Lazy 끊김 방지)
 	public List<ExportDataToAiDTO> exportByFileId(Long fileId) {
-		log.info("[진행] : EventHistory 엔티티 → ExportRowDTO 변환 (fileId=" + fileId + ")");
+		log.info("[진행] : EventHistory 엔티티 → ExportDataToAiDTO 변환 (fileId=" + fileId + ")");
 
 		// [1] fileId null 체크를 쿼리 전에!
 		if (fileId == null) {

@@ -5,10 +5,10 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import edu.pnu.Repo.EventHistoryRepository;
 import edu.pnu.dto.dataShere.ImportAiDataDTO;
 import edu.pnu.dto.dataShere.ImportDatafromAiDTO;
 import edu.pnu.exception.NoDataFoundException;
+import edu.pnu.repo.EventHistoryRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;

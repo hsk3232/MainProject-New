@@ -2,9 +2,9 @@ package edu.pnu.service.member;
 
 import org.springframework.stereotype.Service;
 
-import edu.pnu.Repo.MemberRepository;
 import edu.pnu.domain.Role;
 import edu.pnu.exception.NotFoundException;
+import edu.pnu.repo.MemberRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service

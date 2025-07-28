@@ -4,11 +4,11 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
-import edu.pnu.Repo.AiDataRepository;
-import edu.pnu.Repo.EventHistoryRepository;
-import edu.pnu.Repo.KPIAnalysisRepository;
 import edu.pnu.domain.Csv;
 import edu.pnu.domain.KPIAnalysis;
+import edu.pnu.repo.AiDataRepository;
+import edu.pnu.repo.EventHistoryRepository;
+import edu.pnu.repo.KPIAnalysisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

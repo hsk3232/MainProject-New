@@ -75,13 +75,16 @@ public class CsvSaveBatchService {
 		log.info("[성공] : [CsvSaveBatchService] Product batch insert 완료! 저장 건수: {}", products.size());
 	}
 
-	/** Epc batch insert */
 
+	/** Epc batch insert */
 	public void saveEpcs(List<Epc> epcs) {
 		
 		if (epcs.isEmpty())
 			return;
-		String sql = "INSERT INTO epc (epc_code, epc_header, epc_lot, epc_serial, location_id, epc_product, manufacture_date, expiry_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            
+        // [수정] SQL 쿼리에서 'epc_product' 컬럼을 'product_id'로 변경했습니다.
+        // [원인] epc 테이블은 product 테이블의 외래 키(product_id)를 참조해야 합니다.
+		String sql = "INSERT INTO epc (epc_code, epc_header, epc_lot, epc_serial, location_id, product_id, manufacture_date, expiry_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 		jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
 			public void setValues(PreparedStatement ps, int i) throws SQLException {
 				Epc e = epcs.get(i);
@@ -90,7 +93,10 @@ public class CsvSaveBatchService {
 				ps.setString(3, e.getEpcLot());
 				ps.setString(4, e.getEpcSerial());
 				ps.setObject(5, e.getLocation() != null ? e.getLocation().getLocationId() : null);
-				ps.setObject(6, e.getProduct() != null ? e.getProduct().getEpcProduct() : null);
+
+                // [수정] 파라미터로 Product 객체의 'epcProduct' (문자열) 대신 'productId' (Long)를 설정하도록 변경했습니다.
+                // [원인] SQL 쿼리의 'product_id' 컬럼에 맞는 숫자 ID 값을 전달해야 합니다.
+				ps.setObject(6, e.getProduct() != null ? e.getProduct().getProductId() : null);
 				
 				if (e.getManufactureDate() != null)
 					ps.setTimestamp(7, Timestamp.valueOf(e.getManufactureDate()));
@@ -173,5 +179,4 @@ public class CsvSaveBatchService {
 			log.error("[오류] : [CsvSaveBatchService] [EventHistory 저장 실패]", e);
 		}
 	}
-	
 }

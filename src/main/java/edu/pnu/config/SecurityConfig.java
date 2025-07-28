@@ -16,9 +16,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import edu.pnu.Repo.MemberRepository;
 import edu.pnu.config.filter.JWTAuthenticationFilter;
 import edu.pnu.config.filter.JWTAuthorizationFilter;
+import edu.pnu.repo.MemberRepository;
 
 // --------- Security 보안 규칙, 필터, 인가 정책 ---------//
 

@@ -4,9 +4,9 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import edu.pnu.Repo.KPIAnalysisRepository;
 import edu.pnu.domain.KPIAnalysis;
 import edu.pnu.dto.KPIExportDTO;
+import edu.pnu.repo.KPIAnalysisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

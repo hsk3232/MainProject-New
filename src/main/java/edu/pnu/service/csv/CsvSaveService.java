@@ -30,11 +30,6 @@ import com.opencsv.CSVParserBuilder;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
 
-import edu.pnu.Repo.CsvRepository;
-import edu.pnu.Repo.EpcRepository;
-import edu.pnu.Repo.LocationRepository;
-import edu.pnu.Repo.MemberRepository;
-import edu.pnu.Repo.ProductRepository;
 import edu.pnu.config.CustomUserDetails;
 import edu.pnu.domain.Csv;
 import edu.pnu.domain.Epc;
@@ -48,6 +43,11 @@ import edu.pnu.exception.CsvFileNotFoundException;
 import edu.pnu.exception.CsvFileSaveToDiskException;
 import edu.pnu.exception.FileUploadException;
 import edu.pnu.exception.InvalidCsvFormatException;
+import edu.pnu.repo.CsvRepository;
+import edu.pnu.repo.EpcRepository;
+import edu.pnu.repo.LocationRepository;
+import edu.pnu.repo.MemberRepository;
+import edu.pnu.repo.ProductRepository;
 import edu.pnu.service.datashare.DataApplyService;
 import edu.pnu.service.datashare.DataShareService;
 import edu.pnu.service.statistics.StatisticsAdminService;
@@ -214,106 +214,17 @@ public class CsvSaveService {
 
 				// === chunkSize 도달 시 청크 저장 ===
 				if (chunk.size() >= chunkSize) {
-					// [실제 저장용] - 매 청크마다 새로 할당(스코프 안)
-					List<Location> locations = new ArrayList<>();
-					List<Product> products = new ArrayList<>();
-					List<Epc> epcs = new ArrayList<>();
-					List<EventHistory> events = new ArrayList<>();
-
-					parseAndStoreChunk(chunk, colIdx, csvLog, dtf, ymdFormatter,
-						    insertedLocations, insertedProducts, insertedEPCs,
-						    locations, products, epcs, events,
-						    errorRows, rowNum - chunk.size() + 1,
-						    productKeyToIdMap);
-
-					try {
-						// chunkSize에 도달할 때마다 batch insert
-						csvSaveBatchService.saveLocations(locations);
-						csvSaveBatchService.saveProducts(products);
-						csvSaveBatchService.saveEpcs(epcs);
-						csvSaveBatchService.saveEvent(events);
-
-						// ★ 추가: 저장 완료된 데이터를 중복 방지 세트에 추가
-						// ★ 수정: 람다식 대신 일반 for문 사용
-						for (Location loc : locations) {
-							insertedLocations.add(loc.getLocationId());
-						}
-						for (Product prod : products) {
-							insertedProducts.add(prod.getEpcProduct());
-						}
-						for (Epc epc : epcs) {
-							insertedEPCs.add(epc.getEpcCode());
-						}
-
-						log.info("[성공] : [CsvSaveService] 청크 처리 완료 (row: {} ~ {})", rowNum - chunkSize + 1, rowNum);
-
-					} catch (Exception e) {
-						// ★ 저장 실패 시, 해당 chunk의 row 번호를 모두 errorRows에 기록 ★
-						int startRow = rowNum - chunkSize + 1;
-						int endRow = rowNum;
-						List<Integer> failRows = new ArrayList<>();
-						for (int i = startRow; i <= endRow; i++)
-							failRows.add(i);
-						errorRows.computeIfAbsent("DB 저장 실패", k -> new ArrayList<>()).addAll(failRows);
-						log.error("[오류] : [CsvSaveService] 청크 저장 실패 (row: {} ~ {}): {}", startRow, endRow,
-								e.getMessage());
-					}
-
+                    // [수정된 로직] 외래 키 종속성 문제를 해결하기 위해 청크 처리를 2단계로 분리합니다.
+                    // 1단계: Location, Product 같이 다른 엔티티에 종속되지 않는 데이터를 먼저 파싱하고 저장합니다.
+                    // 2단계: 저장된 Product의 ID를 포함하여 맵을 갱신한 후, 이 ID를 참조하는 Epc, EventHistory를 파싱하고 저장합니다.
+					processChunkInStages(chunk, colIdx, csvLog, dtf, ymdFormatter, insertedLocations, insertedProducts, insertedEPCs, productKeyToIdMap, errorRows, rowNum - chunk.size() + 1);
 					chunk.clear();
 				}
 			}
 			// [9] 마지막 남은 chunk 저장 처리
-			// === while문 종료 후, chunk가 남았으면 저장 ===
 			if (!chunk.isEmpty()) {
-				List<Location> locations = new ArrayList<>();
-				List<Product> products = new ArrayList<>();
-				List<Epc> epcs = new ArrayList<>();
-				List<EventHistory> events = new ArrayList<>();
-				parseAndStoreChunk(chunk, colIdx, csvLog, dtf, ymdFormatter,
-					    insertedLocations, insertedProducts, insertedEPCs,
-					    locations, products, epcs, events,
-					    errorRows, rowNum - chunk.size() + 1,
-					    productKeyToIdMap);
-				// 파싱해서 리스트로 변환 및 중복 방지 세트 갱신
-
-				try {
-					// 저장 전 리스트 크기 확인
-					log.info("저장 전 리스트 크기 확인 - locations: {}, products: {}, epcs: {}, events: {}", locations.size(),
-							products.size(), epcs.size(), events.size());
-					csvSaveBatchService.saveLocations(locations);
-					csvSaveBatchService.saveProducts(products);
-					csvSaveBatchService.saveEpcs(epcs);
-					csvSaveBatchService.saveEvent(events);
-
-					// ★ 추가: 저장 완료된 데이터를 중복 방지 세트에 추가
-					// ★ 수정: 람다식 대신 일반 for문 사용
-					for (Location loc : locations) {
-						insertedLocations.add(loc.getLocationId());
-					}
-					for (Product prod : products) {
-						insertedProducts.add(prod.getEpcProduct());
-					}
-					for (Epc epc : epcs) {
-						insertedEPCs.add(epc.getEpcCode());
-					}
-
-					log.info("[성공] : [CsvSaveService] 마지막 청크 처리 완료 (row: {} ~ {})", rowNum - chunk.size() + 1, rowNum);
-
-				} catch (Exception e) {
-					// ★ 저장 실패 시, 해당 chunk의 row 번호를 모두 errorRows에 기록 ★
-					int startRow = rowNum - chunkSize + 1;
-					int endRow = rowNum;
-					List<Integer> failRows = new ArrayList<>();
-					for (int i = startRow; i <= endRow; i++)
-						failRows.add(i);
-					errorRows.computeIfAbsent("DB 저장 실패", k -> new ArrayList<>()).addAll(failRows);
-					log.error("[오류] 청크 저장 실패 (row: {} ~ {}): {}", startRow, endRow, e.getMessage());
-				}
-
-				locations.clear();
-				products.clear();
-				epcs.clear();
-				events.clear();
+                // [수정된 로직] 마지막 남은 청크도 동일한 2단계 방식으로 처리합니다.
+				processChunkInStages(chunk, colIdx, csvLog, dtf, ymdFormatter, insertedLocations, insertedProducts, insertedEPCs, productKeyToIdMap, errorRows, rowNum - chunk.size() + 1);
 				chunk.clear();
 			}
 
@@ -325,7 +236,8 @@ public class CsvSaveService {
 			if (!errorRows.isEmpty()) {
 				StringBuilder report = new StringBuilder("[CSV 저장 전체 오류 요약]\n");
 				errorRows.forEach((type, errorRowList) -> {
-					report.append("오류[").append(type).append("]: ").append(rows.size()).append("건 rows: ").append(rows)
+                    // [수정된 로직] 'rows' 변수가 스코프 내에 없으므로 'errorRowList'로 변경합니다.
+					report.append("오류[").append(type).append("]: ").append(errorRowList.size()).append("건 rows: ").append(errorRowList)
 							.append("\n");
 				});
 //				throw new RuntimeException(report.toString());
@@ -340,117 +252,162 @@ public class CsvSaveService {
 		return csvLog.getFileId();
 	}
 
+	
 	// ■■■■■■■■■■■■■■■■■■■■■■■■■■■ [청크 단위 CSV 파싱 메서드] ■■■■■■■■■■■■■■■■■■■■■■■■
 	// 하나의 chunk(List<String[]>)를 받아서 도메인 객체로 변환하고 중복 여부를 검사하는 메서드
 	// 1. 필수 항목 누락 체크 및 오류 집계
 	// 2. location_id, epc_product, epc_code의 중복 여부를 insertedXxx Set으로 관리
 	// 3. 각 row에 대해 Location, Product, Epc, EventHistory 객체를 생성하고 리스트에 담음
 	// 4. 날짜, boolean, double 등 타입 파싱은 tryParse 메서드에서 오류 감지 및 로그 기록 처리
-	private void parseAndStoreChunk(List<String[]> chunk, Map<String, Integer> colIdx, Csv csvLog,
-			DateTimeFormatter dtf, DateTimeFormatter ymdFormatter, Set<Long> insertedLocations,
-			Set<String> insertedProducts, Set<String> insertedEPCs, List<Location> locations, List<Product> products,
-			List<Epc> epcs, List<EventHistory> events, Map<String, List<Integer>> errorRows, int startRowNum,
-		    Map<String, Long> productKeyToIdMap) {
+
+	private void processChunkInStages(List<String[]> chunk, Map<String, Integer> colIdx, Csv csvLog,
+                                  DateTimeFormatter dtf, DateTimeFormatter ymdFormatter, Set<Long> insertedLocations,
+                                  Set<String> insertedProducts, Set<String> insertedEPCs,
+                                  Map<String, Long> productKeyToIdMap, Map<String, List<Integer>> errorRows, int startRowNum) {
+
+		// [수정된 로직] 1단계: 선행 엔티티(Location, Product) 파싱 및 리스트 준비
+		List<Location> locationsToSave = new ArrayList<>();
+		List<Product> productsToSave = new ArrayList<>();
 
 		for (int i = 0; i < chunk.size(); i++) {
 			String[] row = chunk.get(i);
 			int currentRow = startRowNum + i;
-			try {
-				Long locId = parseLongSafe(getValue(colIdx, row, "location_id"));
-				String prodId = getValue(colIdx, row, "epc_product");
-				String epcCode = getValue(colIdx, row, "epc_code");
 
-				// === [추가] 동기 방식과 동일: 필수값 파싱 오류 별도 집계
-				if (locId == null) {
-					errorRows.computeIfAbsent("location_id 파싱 오류", k -> new ArrayList<>()).add(currentRow);
-					continue;
+            Long locId = parseLongSafe(getValue(colIdx, row, "location_id"));
+            if (locId == null) {
+                errorRows.computeIfAbsent("location_id 파싱 오류", k -> new ArrayList<>()).add(currentRow);
+                continue;
+            }
+
+			// Location 파싱
+			if (!insertedLocations.contains(locId)) {
+				locationsToSave.add(
+					Location.builder()
+						.locationId(locId)
+						.scanLocation(getValue(colIdx, row, "scan_location"))
+						.latitude(parseDoubleSafe(getValue(colIdx, row, "latitude")))
+						.longitude(parseDoubleSafe(getValue(colIdx, row, "longitude")))
+						.operatorId(parseLongSafe(getValue(colIdx, row, "operator_id")))
+						.deviceId(parseLongSafe(getValue(colIdx, row, "device_id")))
+						.build());
+                insertedLocations.add(locId); // 중복 추가 방지를 위해 미리 세트에 추가
+			}
+			
+			// Product 파싱
+			String prodId = getValue(colIdx, row, "epc_product");
+			String epcCompany = getValue(colIdx, row, "epc_company");
+			String productName = getValue(colIdx, row, "product_name");
+			String productKey = prodId + "|" + epcCompany + "|" + productName;
+			
+			if (prodId == null || prodId.isBlank()){
+				errorRows.computeIfAbsent("epc_product 파싱 오류", k -> new ArrayList<>()).add(currentRow);
+				continue;
+			}
+
+			if (!insertedProducts.contains(productKey)) {
+				productsToSave.add(Product.builder()
+					.epcProduct(prodId)
+					.epcCompany(epcCompany)
+					.productName(productName)
+					.build());
+                insertedProducts.add(productKey); // 중복 추가 방지를 위해 미리 세트에 추가
+			}
+		}
+
+		try {
+			// [수정된 로직] 1단계-저장: 선행 엔티티를 DB에 먼저 저장합니다.
+			if (!locationsToSave.isEmpty()) csvSaveBatchService.saveLocations(locationsToSave);
+			if (!productsToSave.isEmpty()) csvSaveBatchService.saveProducts(productsToSave);
+
+			// [수정된 로직] productKey-productId 맵을 최신화합니다.
+			// 새로 저장된 Product의 DB 생성 ID를 가져오기 위함입니다.
+			if (!productsToSave.isEmpty()) {
+				List<Object[]> latestRows = productRepo.findAllProductKeyIdMap();
+				for (Object[] line : latestRows) {
+					String key = line[0] + "|" + line[1] + "|" + line[2];
+					Long productId = (Long) line[3];
+					productKeyToIdMap.put(key, productId);
 				}
-				if (prodId == null) {
-					errorRows.computeIfAbsent("epc_product 파싱 오류", k -> new ArrayList<>()).add(currentRow);
-					continue;
-				}
+			}
+
+			// [수정된 로직] 2단계: 종속 엔티티(Epc, EventHistory) 파싱 및 리스트 준비
+			List<Epc> epcsToSave = new ArrayList<>();
+			List<EventHistory> eventsToSave = new ArrayList<>();
+
+			for (int i = 0; i < chunk.size(); i++) {
+				String[] row = chunk.get(i);
+				int currentRow = startRowNum + i;
+				
+                String epcCode = getValue(colIdx, row, "epc_code");
 				if (epcCode == null || epcCode.isBlank()) {
 					errorRows.computeIfAbsent("epc_code 파싱 오류", k -> new ArrayList<>()).add(currentRow);
 					continue;
 				}
 
-				// === [중복 INSERT 방지: DB+파일 모두] ===
-				// === Location 저장 ===
-				if (!insertedLocations.contains(locId)) {
-					locations.add(
-						Location.builder()
-							.locationId(locId)
-							.scanLocation(getValue(colIdx, row, "scan_location"))
-							.latitude(parseDoubleSafe(getValue(colIdx, row, "latitude")))
-							.longitude(parseDoubleSafe(getValue(colIdx, row, "longitude")))
-							.operatorId(parseLongSafe(getValue(colIdx, row, "operator_id")))
-							.deviceId(parseLongSafe(getValue(colIdx, row, "device_id")))
-							.build());
-				}
-				insertedLocations.add(locId);
-				
-				// === Product 저장 ===
-				String epcCompany = getValue(colIdx, row, "epc_company");
-				String productName = getValue(colIdx, row, "product_name");
-
-				// 중복 체크를 위한 복합 키 생성 (epc_product|epc_company|product_name)
-				String productKey = prodId + "|" + epcCompany + "|" + productName;
-				if (!insertedProducts.contains(productKey)) {
-				    products.add(Product.builder()
-				        .epcProduct(prodId)
-				        .epcCompany(epcCompany)
-				        .productName(productName)
-				        .build());
-				}
-				insertedProducts.add(productKey);
-
-			
-				
-				// === EPC 저장 ===
+				// Epc 파싱
 				if (!insertedEPCs.contains(epcCode)) {
+                    String prodId = getValue(colIdx, row, "epc_product");
+                    String epcCompany = getValue(colIdx, row, "epc_company");
+                    String productName = getValue(colIdx, row, "product_name");
+                    String productKey = prodId + "|" + epcCompany + "|" + productName;
 					
+					// 최신화된 맵에서 productId를 조회합니다. 이 시점에서는 항상 유효한 ID를 찾을 수 있습니다.
 					Long productId = productKeyToIdMap.get(productKey);
-					
-					epcs.add(
-							Epc.builder()
-								.epcCode(epcCode)
-								.epcHeader(getValue(colIdx, row, "epc_header"))
-								
-								.epcLot(getValue(colIdx, row, "epc_lot"))
-								.epcSerial(getValue(colIdx, row, "epc_serial"))
-								.location(Location.builder().locationId(locId).build())
-								.product(Product.builder().productId(productId).build())
-								.manufactureDate(tryParseDateTime(getValue(colIdx, row, "manufacture_date"), dtf, errorRows,
-										currentRow, "manufacture_date"))
-								.expiryDate(tryParseDate(getValue(colIdx, row, "expiry_date"), ymdFormatter, errorRows,
-										currentRow, "expiry_date"))
-								.build());
-					
-				}
-				insertedEPCs.add(epcCode);
+					if (productId == null) { // 만약 Product 키가 잘못되어 맵에 없다면 오류로 기록
+						errorRows.computeIfAbsent("Epc에 해당하는 Product ID 조회 실패", k-> new ArrayList<>()).add(currentRow);
+						continue;
+					}
 
-				// === 날짜 등 필드 파싱 오류 별도 집계 ===
-				EventHistory.EventHistoryBuilder evBuilder = EventHistory.builder()
+					Long locId = parseLongSafe(getValue(colIdx, row, "location_id"));
+					if (locId == null) continue; // 위에서 이미 처리했지만 안전장치
+
+					epcsToSave.add(Epc.builder()
+						.epcCode(epcCode)
+						.epcHeader(getValue(colIdx, row, "epc_header"))
+						.epcLot(getValue(colIdx, row, "epc_lot"))
+						.epcSerial(getValue(colIdx, row, "epc_serial"))
+						.location(Location.builder().locationId(locId).build())
+						.product(Product.builder().productId(productId).build()) // 안전하게 조회된 ID 사용
+						.manufactureDate(tryParseDateTime(getValue(colIdx, row, "manufacture_date"), dtf, errorRows, currentRow, "manufacture_date"))
+						.expiryDate(tryParseDate(getValue(colIdx, row, "expiry_date"), ymdFormatter, errorRows, currentRow, "expiry_date"))
+						.build());
+                    insertedEPCs.add(epcCode); // 중복 추가 방지를 위해 미리 세트에 추가
+				}
+
+				// EventHistory 파싱
+				Long locId = parseLongSafe(getValue(colIdx, row, "location_id"));
+				if (locId == null) continue;
+
+				eventsToSave.add(EventHistory.builder()
 						.epc(Epc.builder().epcCode(epcCode).build())
 						.location(Location.builder().locationId(locId).build())
-						.hubType(getValue(colIdx, row, "hub_type")).eventType(getValue(colIdx, row, "event_type"))
+						.hubType(getValue(colIdx, row, "hub_type"))
+						.eventType(getValue(colIdx, row, "event_type"))
 						.businessOriginal(getValue(colIdx, row, "business_step"))
 						.businessStep(normalizeBusinessStep(getValue(colIdx, row, "business_step")))
-						.eventType(getValue(colIdx, row, "event_type"))
-						.csv(csvLog);
-
-				// 날짜 파싱
-				evBuilder.eventTime(tryParseDateTime(getValue(colIdx, row, "event_time"), dtf, errorRows, currentRow,
-						"event_time"));
-
-				events.add(evBuilder.build());
-
-			} catch (Exception e) {
-				errorRows.computeIfAbsent("파싱 오류", k -> new ArrayList<>()).add(currentRow);
-				log.error("[오류] : [CsvSaveService] void parseAndStoreChunk 저장 오류 " + e.getMessage());
+						.eventTime(tryParseDateTime(getValue(colIdx, row, "event_time"), dtf, errorRows, currentRow, "event_time"))
+						.csv(csvLog)
+						.build());
 			}
+
+			// [수정된 로직] 2단계-저장: 종속 엔티티들을 DB에 저장합니다.
+			if (!epcsToSave.isEmpty()) csvSaveBatchService.saveEpcs(epcsToSave);
+			if (!eventsToSave.isEmpty()) csvSaveBatchService.saveEvent(eventsToSave);
+            
+			log.info("[성공] : [CsvSaveService] 청크 처리 완료 (row: {} ~ {})", startRowNum, startRowNum + chunk.size() - 1);
+		
+		} catch (Exception e) {
+			int startRow = startRowNum;
+			int endRow = startRowNum + chunk.size() - 1;
+			List<Integer> failRows = new ArrayList<>();
+			for (int i = startRow; i <= endRow; i++) failRows.add(i);
+			errorRows.computeIfAbsent("DB 저장 실패", k -> new ArrayList<>()).addAll(failRows);
+			log.error("[오류] : [CsvSaveService] 청크 저장 실패 (row: {} ~ {}): {}", startRow, endRow, e.getMessage());
 		}
 	}
+
+
+
 	
 	// 파일 저장
 	public void storeFileToDisk(MultipartFile file, Csv csvLog) {

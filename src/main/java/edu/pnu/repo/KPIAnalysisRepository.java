@@ -1,4 +1,4 @@
-package edu.pnu.Repo;
+package edu.pnu.repo;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

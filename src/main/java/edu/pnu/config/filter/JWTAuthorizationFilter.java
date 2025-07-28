@@ -14,9 +14,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 
-import edu.pnu.Repo.MemberRepository;
 import edu.pnu.config.CustomUserDetails;
 import edu.pnu.domain.Member;
+import edu.pnu.repo.MemberRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

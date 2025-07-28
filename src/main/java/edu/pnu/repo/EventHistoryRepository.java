@@ -1,4 +1,4 @@
-package edu.pnu.Repo;
+package edu.pnu.repo;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,8 +29,7 @@ public interface EventHistoryRepository extends JpaRepository<EventHistory, Long
 	// epcCode별 이벤트 시간순 정렬
 	List<EventHistory> findByEpc_EpcCodeOrderByEventTimeAsc(String epcCode);
 
-	@Query("SELECT e FROM EventHistory e " + "JOIN FETCH e.epc ep " + "JOIN FETCH ep.product "
-			+ "WHERE e.csv.fileId = :fileId")
+	@Query("SELECT eh FROM EventHistory eh JOIN FETCH eh.epc e JOIN FETCH e.product p JOIN FETCH eh.location l WHERE eh.csv.fileId = :fileId")
 	List<EventHistory> findAllByCsv_FileIdWithEpcAndProduct(@Param("fileId") Long fileId);
 
 	Optional<EventHistory> findFirstByLocationOrderByEventTimeDesc(Location l);
@@ -43,13 +42,16 @@ public interface EventHistoryRepository extends JpaRepository<EventHistory, Long
 
 	List<EventHistory> findByEventIdIn(List<Long> eventId); // eventId 컬럼이 eventIds 리스트에 포함되는 것만 검색
 
+	   // [수정] KPI 통계 집계 쿼리 수정
+    // 1. (JOIN) `product` 테이블을 'p'라는 별칭으로 추가 JOIN하여 제품 정보를 가져옵니다. (ON e.product_id = p.product_id)
+    // 2. (SELECT) 제품 종류 수를 셀 때 `e.epc_product` 대신, 새로 JOIN한 `p` 테이블의 고유 ID인 `p.product_id`를 기준으로 COUNT하도록 변경했습니다.
 	@Query(value = """
 		    SELECT
 		        -- 전체 trip 수
 		        COUNT(*) AS totalTripCount,
 
 		        -- 제품 종류 수
-		        COUNT(DISTINCT e.epc_product) AS uniqueProductCount,
+		        COUNT(DISTINCT p.product_id) AS uniqueProductCount,
 
 		        -- 공장에서 생성된 개수
 		        SUM(CASE WHEN eh.business_step = 'Factory' THEN 1 ELSE 0 END) AS codeCount,
@@ -78,8 +80,22 @@ public interface EventHistoryRepository extends JpaRepository<EventHistory, Long
 
 		    FROM eventhistory eh
 		    LEFT JOIN epc e ON eh.epc_code = e.epc_code
+		    LEFT JOIN product p ON e.product_id = p.product_id
 		    WHERE eh.file_id = :fileId
 		""", nativeQuery = true)
 		Map<String, Object> getKpiAggregates(@Param("fileId") Long fileId);
+	
+	 // [추가] epc 코드를 기준으로 가장 첫 번째(시간상 가장 빠른) 이벤트를 찾는 쿼리
+    Optional<EventHistory> findFirstByEpc_EpcCodeOrderByEventTimeAsc(String epcCode);
+    
+ // [추가] EPC 코드 리스트를 받아, 관련된 모든 EventHistory를 연관 엔티티와 함께 조회
+    // EPC 코드와 이벤트 시간 순서로 정렬하여 경로 추적을 용이하게 함
+    @Query("SELECT eh FROM EventHistory eh " +
+            "JOIN FETCH eh.epc e " +
+            "JOIN FETCH e.product p " +
+            "JOIN FETCH eh.location l " +
+            "WHERE e.epcCode IN :epcCodes " +
+            "ORDER BY e.epcCode ASC, eh.eventTime ASC")
+     List<EventHistory> findFullHistoriesByEpcCodes(@Param("epcCodes") List<String> epcCodes);
 
 }

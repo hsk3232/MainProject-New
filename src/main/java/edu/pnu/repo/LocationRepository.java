@@ -1,4 +1,4 @@
-package edu.pnu.Repo;
+package edu.pnu.repo;
 
 import java.util.List;
 import java.util.Set;
