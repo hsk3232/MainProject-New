@@ -1,4 +1,4 @@
-package edu.pnu.dto.dataShere;
+package edu.pnu.dto.dataShare;
 
 import java.util.List;
 

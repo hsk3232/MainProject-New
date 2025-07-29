@@ -47,9 +47,14 @@ public class MyBatchConfig {
 	        .tasklet((contribution, chunkContext) -> {
 	            // 여기에 배치 작업 로직 작성 (예: 로그, DB 저장 등)
 	        	
+	        	// 1️⃣ fileId를 JobParameter에서 꺼내온다
+	            Long fileId = Long.valueOf(chunkContext.getStepContext()
+                        .getJobParameters()
+                        .get("fileId").toString());
+	            
 	        	log.info("[실행] : [MyBatchConfig] Step 실행됨!");
 	        	// [1] 새로운 Csv 저장되면, AnalyzedTrip 로직 저장
-	        	batchTriggerService.analyzeAndSaveAllTrips(); 
+	        	batchTriggerService.analyzeAndSaveAllTripsBatch(fileId); 
 	        	
 	            return RepeatStatus.FINISHED;
 	        }, transactionManager)

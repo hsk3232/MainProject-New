@@ -5,8 +5,8 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import edu.pnu.dto.dataShere.ImportAiDataDTO;
-import edu.pnu.dto.dataShere.ImportDatafromAiDTO;
+import edu.pnu.dto.dataShare.ImportAiDataDTO;
+import edu.pnu.dto.dataShare.ImportDatafromAiDTO;
 import edu.pnu.exception.NoDataFoundException;
 import edu.pnu.repo.EventHistoryRepository;
 import jakarta.persistence.EntityManager;
@@ -29,7 +29,8 @@ public class DataApplyService   {
 			log.info("[진입] : [DataShareService] AI로부터 받은 이상치 결과 DB 반영 시작");
 			
 			if (importData.getEventHistory() == null || importData.getEventHistory().isEmpty()) {
-			    throw new NoDataFoundException("[DataShareService] 수신 데이터 비어있음");
+			    log.warn("[경고] : [DataShareService] 수신 데이터 비어있음. 이상 물류 탐지 없음");
+			    return; // 바로 함수 종료
 			}
 			
 			if (importData.getEventHistory() != null) {

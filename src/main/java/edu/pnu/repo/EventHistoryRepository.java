@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -50,8 +51,8 @@ public interface EventHistoryRepository extends JpaRepository<EventHistory, Long
 		        -- 전체 trip 수
 		        COUNT(*) AS totalTripCount,
 
-		        -- 제품 종류 수
-		        COUNT(DISTINCT p.product_id) AS uniqueProductCount,
+		        -- 공장에서 생산된 제품 종류 수
+		        COUNT(DISTINCT CASE WHEN eh.business_step = 'Factory' THEN p.product_id END) AS uniqueProductCount,
 
 		        -- 공장에서 생성된 개수
 		        SUM(CASE WHEN eh.business_step = 'Factory' THEN 1 ELSE 0 END) AS codeCount,
@@ -71,7 +72,7 @@ public interface EventHistoryRepository extends JpaRepository<EventHistory, Long
 		        -- EPC별 리드타임 평균 (초 단위)
 		        (
 		            SELECT AVG(leadTimeSec) FROM (
-		                SELECT TIMESTAMPDIFF(SECOND, MIN(eh2.event_time), MAX(eh2.event_time)) AS leadTimeSec
+		                SELECT TIMESTAMPDIFF(SECOND, MIN(eh2.event_time), MAX(eh2.event_time))/ 86400.0 AS leadTimeSec
 		                FROM eventhistory eh2
 		                WHERE eh2.file_id = :fileId
 		                GROUP BY eh2.epc_code
@@ -97,5 +98,13 @@ public interface EventHistoryRepository extends JpaRepository<EventHistory, Long
             "WHERE e.epcCode IN :epcCodes " +
             "ORDER BY e.epcCode ASC, eh.eventTime ASC")
      List<EventHistory> findFullHistoriesByEpcCodes(@Param("epcCodes") List<String> epcCodes);
+    
+    
+    @Query("""
+    	    SELECT e FROM EventHistory e
+    	    WHERE e.csv.fileId = :fileId
+    	    ORDER BY e.epc.epcCode ASC, e.eventTime ASC
+    	""")
+    	Stream<EventHistory> streamByFileIdOrderByEpcCodeAndEventTime(@Param("fileId") Long fileId);
 
 }

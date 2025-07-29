@@ -20,7 +20,7 @@ public class TripAnalysisComponet implements StatisticsInterface{
 	
 	@Override
 	public void process(Long fileId) {
-		batchTriggerService.analyzeAndSaveAllTrips();
+		batchTriggerService.analyzeAndSaveAllTripsBatch(fileId);
 		log.info("[완료] : [BatchTriggerService] → [TripAnalysisComponet]  AnalyzedTrip DB 저장 완료");
 	}
 	

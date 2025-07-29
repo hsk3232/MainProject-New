@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 import edu.pnu.domain.AiData;
+import edu.pnu.domain.AnalyzedTrip;
 import edu.pnu.domain.AssetProduct;
 import edu.pnu.domain.Epc;
 import edu.pnu.domain.EventHistory;
@@ -84,12 +85,40 @@ public class FindAnomalyComponet implements StatisticsInterface {
 
 		// 6. 각 EPC의 이동 경로를 검증하여 'clone'으로 판별된 이벤트 ID들을 저장
 		Set<Long> cloneEventIds = new HashSet<>();
-		Set<Long> firstFactoryEvents = new HashSet<>();
-		historiesByEpc.forEach((epcCode, history) -> {
-			 if (!history.isEmpty() && "Factory".equals(history.get(0).getBusinessStep())) {
-			        firstFactoryEvents.add(history.get(0).getEventId());
-			    }
-			cloneEventIds.addAll(logisticsFlowValidatorService.findViolations(history));
+		historiesByEpc.forEach((epcCode, eventList) -> {
+            if (eventList == null || eventList.size() < 2) {
+                // 경로를 구성할 이벤트가 2개 미만이면 검사할 수 없음
+                return; 
+            }
+
+            // [핵심 수정] List<EventHistory>를 List<AnalyzedTrip>으로 변환합니다.
+            List<AnalyzedTrip> trips = new ArrayList<>();
+            for (int i = 0; i < eventList.size() - 1; i++) {
+                EventHistory fromEvent = eventList.get(i);
+                EventHistory toEvent = eventList.get(i+1);
+
+                AnalyzedTrip trip = new AnalyzedTrip();
+                // AnalyzedTrip의 ID는 보통 'to' 이벤트의 ID를 따라갑니다.
+                // 또는 from/to의 event_id를 조합하여 고유 ID를 생성할 수도 있습니다.
+                trip.setRoadId(toEvent.getEventId()); 
+
+                // From 정보 설정
+                trip.setFromBusinessStep(fromEvent.getBusinessStep());
+                trip.setFromEventType(fromEvent.getEventType());
+                trip.setFromLocation(fromEvent.getLocation());;
+
+                // To 정보 설정
+                trip.setToBusinessStep(toEvent.getBusinessStep());
+                trip.setToEventType(toEvent.getEventType());
+                trip.setToLocation(toEvent.getLocation());;
+                
+                trips.add(trip);
+            }
+            
+            // 이제 변환된 'trips' 리스트로 검증을 수행합니다.
+            if (!trips.isEmpty()) {
+                cloneEventIds.addAll(logisticsFlowValidatorService.findViolations(trips));
+            }
 		});
 
 		// --- 'clone' 판별 로직 종료 ---

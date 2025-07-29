@@ -31,6 +31,7 @@ public class BatchTriggerListener {
 		// [JobParameters] - Spring Batch에서는 파라미터가 동일하면 이미 실행된 Job으로 간주하고 다시 실행하지 않음
 		JobParameters params = new JobParametersBuilder()
 				.addLong("time", System.currentTimeMillis())  // - 매번 고유한 값(여기서는 현재시간 time)을 추가해서 항상 새로운 JobInstance로 실행되게 함
+				.addLong("fileId", event.getFileId())
 				.toJobParameters();
 		
 		// [Job 실행]

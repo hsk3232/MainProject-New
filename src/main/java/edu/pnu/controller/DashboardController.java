@@ -1,11 +1,16 @@
 package edu.pnu.controller;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import edu.pnu.dto.AnalyzedTripDTO;
 import edu.pnu.dto.NodeDTO;
 import edu.pnu.service.DashboardService;
 import lombok.RequiredArgsConstructor;
@@ -29,23 +34,52 @@ public class DashboardController {
 	}
 	
 //	@GetMapping("/anomalies")
-//	public Map<String, Object> getFileListByCursor(@RequestParam(required = false) Long cursor,
-//			@RequestParam(defaultValue = "50") int size, @RequestParam(required = false) String search) {
+//	public Map<String, Object> getAnomaliesList(
+//	        @RequestParam(defaultValue = "0") int page,
+//	        @RequestParam(defaultValue = "50") int size,
+//	        @RequestParam(required = false) String epcLot,  @RequestParam(required = false) String epcCode) {
 //
-//		List<CsvFileListResponseDTO> data = csvLogService.getFileListByCursor(cursor, size, search);
+//		 Page<AnalyzedTripDTO> dtoPage = dashboardService.getAnomaliesList(page, size, epcLot, epcCode);
 //
-//		// nextCursor(다음 커서값) 계산
-//		Long nextCursor = (data.size() == size) ? data.get(data.size() - 1).getFileId() : null;
+//		    Map<String, Object> response = new HashMap<>();
+//		    response.put("data", dtoPage.getContent());
+//		    response.put("currentPage", dtoPage.getNumber());
+//		    response.put("totalPages", dtoPage.getTotalPages());
+//		    response.put("totalElements", dtoPage.getTotalElements());
+//		    response.put("pageSize", dtoPage.getSize());
 //
-//		// 응답으로 보낼 데이터를 담기 위한 Map(딕셔너리) 생성
-//		Map<String, Object> response = new HashMap<>();
-//
-//		// data라는 이름으로 실제 데이터 리스트(파일 목록) 저장
-//		response.put("data", data);
-//		// 방금 계산한 커서값(또는 null)을 Map에 저장
-//		response.put("nextCursor", nextCursor);
+//		    // 커서처럼 nextCursor를 내려주고 싶다면 (마지막 페이지가 아니고, 데이터가 존재할 때만)
+//		    Long nextCursor = (!dtoPage.isLast() && !dtoPage.isEmpty())
+//		        ? dtoPage.getContent().get(dtoPage.getContent().size() - 1).getRoadId()
+//		        : null;
+//		    response.put("nextCursor", nextCursor);
 //
 //		// 완성된 Map을 응답으로 리턴
 //		return response;
 //	}
+	
+	@GetMapping("/anomalies")
+	public Map<String, Object> getAnomaliesList(
+	        @RequestParam(defaultValue = "50") int limit,
+	        @RequestParam(required = false) Long cursor,
+	        @RequestParam(required = false) String epcLot,
+	        @RequestParam(required = false) String epcCode) {
+
+	    // 커서 방식 서비스 호출 (fileId 파라미터 없음)
+	    List<AnalyzedTripDTO> dtoList = dashboardService.getAnomaliesCursor(limit, cursor, epcCode, epcLot);
+
+	    Map<String, Object> response = new HashMap<>();
+	    response.put("data", dtoList);
+
+	    // 커서: roadId가 제일 마지막 것
+	    Long nextCursor = (!dtoList.isEmpty()) ? dtoList.get(dtoList.size() - 1).getRoadId() : null;
+	    response.put("nextCursor", nextCursor);
+	    response.put("pageSize", limit);
+	    response.put("hasNext", dtoList.size() == limit);
+
+	    return response;
+	}
+	
+//	@GetMapping("/allanomalies")
+	
 }

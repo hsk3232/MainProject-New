@@ -37,7 +37,7 @@ import edu.pnu.domain.EventHistory;
 import edu.pnu.domain.Location;
 import edu.pnu.domain.Member;
 import edu.pnu.domain.Product;
-import edu.pnu.dto.dataShere.ImportDatafromAiDTO;
+import edu.pnu.dto.dataShare.ImportDatafromAiDTO;
 import edu.pnu.exception.BadRequestException;
 import edu.pnu.exception.CsvFileNotFoundException;
 import edu.pnu.exception.CsvFileSaveToDiskException;
