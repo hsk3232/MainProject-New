@@ -34,7 +34,7 @@ public class BatchTriggerService {
         List<AnalyzedTrip> trips = new ArrayList<>(BATCH_SIZE);
         
         log.debug("[시작] : [BatchTriggerService] stream 객체 검색 시작");
-        try (Stream<EventHistory> stream = eventHistoryRepo.streamByFileIdOrderByEpcCodeAndEventTime(fileId)) {
+        try (Stream<EventHistory> stream = eventHistoryRepo.streamByCsvFileIdOrderByEpcCodeAndEventTime(fileId)) {
         	
             stream.forEach(curr -> {
                 if (prevArr[0] != null && prevArr[0].getEpc().getEpcCode().equals(curr.getEpc().getEpcCode())) {
