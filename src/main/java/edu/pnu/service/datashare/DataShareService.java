@@ -53,7 +53,7 @@ public class DataShareService {
 		}
 
 		log.info("[진행] :[DataShareService] 최근 파일 ID = " + lastFileId + " / AI 자동 전송 시작");
-		sendDataAndSaveResult(lastFileId);
+		sendAndReceiveFromAi(lastFileId);
 		log.info("[END][비동기] : [DataShareService] 최근 파일 자동 전송 프로세스 완료\n");
 	}
 
@@ -76,26 +76,31 @@ public class DataShareService {
 		return groupByEpc.entrySet().stream().map(e -> ExportDataToAiDTO.from(e.getKey(), e.getValue())).toList();
 	}
 
-//	 ■■■■■■■■■■■■■ [동기] 파일 ID로 분석 데이터 추출 + AI 서버에 전송 ■■■■■■■■■■■■■■
-	public void sendDataAndSaveResult(Long fileId) {
-		log.info("\n[START][동기] : [DataShareService] AI 데이터 수동 전송 트리거 (fileId=" + fileId + ")");
-
-		log.info("[진행] : [DataShareService] 분석 데이터 추출 시도...");
-		List<ExportDataToAiDTO> dtoList = exportByFileId(fileId);
-
-		if (dtoList.isEmpty()) {
-			log.error("[경고] : [DataShareService] ExportDataToAiDTO 리스트가 비어있음! (fileId=" + fileId + ")");
-			return;
-		}
-
-		log.info("[진행] : 분석 데이터 추출 완료 (" + dtoList.size() + "건)");
-		sendToAiAndSave(dtoList);
-		log.info("[완료] : [DataShareService] AI 데이터 처리 완료 (fileId={})", fileId);
-	}
+////	 ■■■■■■■■■■■■■ [동기] 파일 ID로 분석 데이터 추출 + AI 서버에 전송 ■■■■■■■■■■■■■■
+//	public void sendDataAndSaveResult(Long fileId) {
+//		log.info("\n[START][동기] : [DataShareService] AI 데이터 수동 전송 트리거 (fileId=" + fileId + ")");
+//
+//		log.info("[진행] : [DataShareService] 분석 데이터 추출 시도...");
+//		List<ExportDataToAiDTO> dtoList = exportByFileId(fileId);
+//
+//		if (dtoList.isEmpty()) {
+//			log.error("[경고] : [DataShareService] ExportDataToAiDTO 리스트가 비어있음! (fileId=" + fileId + ")");
+//			return;
+//		}
+//
+//		log.info("[진행] : 분석 데이터 추출 완료 (" + dtoList.size() + "건)");
+//		sendToAiAndSave(dtoList);
+//		log.info("[완료] : [DataShareService] AI 데이터 처리 완료 (fileId={})", fileId);
+//	}
 
 //	 ■■■■■■■■■■  AI 서버에 데이터 전송 및 결과 수신 로직  ■■■■■■■■■■
-	
-	public void sendToAiAndSave(List<ExportDataToAiDTO> dtoList) {
+
+	@Transactional // 반드시 readOnly = false 또는 생략!
+	public void sendAndReceiveFromAi(Long fileId) {
+		List<ExportDataToAiDTO> dtoList = exportByFileId(fileId);
+		if (dtoList.isEmpty()) {
+			throw new NoDataFoundException("[DataShareService] 전송할 데이터가 없습니다 (fileId=" + fileId + ")");
+		}
 
 		int batchSize = props.getBatchSize();
 		int maxRetries = props.getRetryMaxAttempts();
@@ -111,13 +116,6 @@ public class DataShareService {
 
 		log.info("[시작] AI 배치 전송 - 전체: {}건, 배치 사이즈: {}", total, batchSize);
 
-		// [1-3] HTTP 헤더 구성
-		HttpHeaders headers = new HttpHeaders();
-		headers.setContentType(MediaType.APPLICATION_JSON);
-
-		log.info("[시작] AI 배치 전송 - 전체: {}건, 배치 사이즈: {}", total, batchSize);
-		
-		// [2] 배치 단위로 분할 전송
 		for (int i = 0; i < total; i += batchSize) {
 			int end = Math.min(i + batchSize, total);
 			List<ExportDataToAiDTO> batch = dtoList.subList(i, end);
@@ -125,7 +123,6 @@ public class DataShareService {
 
 			log.info("[배치전송][{}] {}~{}번 전송 시도", batchIndex, i + 1, end);
 
-			// [2-2] 전송 및 재시도
 			ImportDatafromAiDTO importData = sendBatchWithRetry(batch, maxRetries, retryDelayMillis, batchIndex);
 
 			if (importData != null) {
@@ -148,13 +145,11 @@ public class DataShareService {
 				consecutiveFailures++;
 			}
 
-			// [2-3] 연속 실패 3회 이상 시 중단
 			if (consecutiveFailures >= 3) {
 				log.error("[중단] 연속 3회 실패 발생 - 배치 전송 중단");
 				break;
 			}
 
-			// [2-4] 배치 간 대기
 			try {
 				Thread.sleep(batchDelayMillis);
 			} catch (InterruptedException e) {
@@ -164,11 +159,11 @@ public class DataShareService {
 			}
 		}
 
-		// [3] 최종 요약 로그
 		log.info("[완료] AI 배치 전송 요약 - 총 전송: {}건, 성공: {}건, 실패: {}건", sent, successCount, failCount);
 		if (!failedBatches.isEmpty()) {
 			log.warn("[실패 배치 인덱스]: {}", failedBatches);
 		}
+
 	}
 
 	// ======= 실제 전송 및 재시도 로직 (중복 분리, RestTemplate 생성 로직 합침) =======
@@ -205,17 +200,17 @@ public class DataShareService {
 		return null;
 	}
 
-	@Transactional(readOnly = true)
-	public ImportDatafromAiDTO sendAndReceiveFromAi(Long fileId) {
-		List<ExportDataToAiDTO> dtoList = exportByFileId(fileId);
-		if (dtoList.isEmpty()) {
-			throw new NoDataFoundException("[DataShareService] 전송할 데이터가 없습니다 (fileId=" + fileId + ")");
-		}
-		log.info("[진행] : AI 전송 대상 DTO {}건 생성 완료", dtoList.size());
-
-		return sendBatchWithRetry(dtoList, props.getRetryMaxAttempts(), props.getRetryDelayMs(), 1);
-	}
-
+//	@Transactional(readOnly = true)
+//	public ImportDatafromAiDTO sendAndReceiveFromAi(Long fileId) {
+//		List<ExportDataToAiDTO> dtoList = exportByFileId(fileId);
+//		if (dtoList.isEmpty()) {
+//			throw new NoDataFoundException("[DataShareService] 전송할 데이터가 없습니다 (fileId=" + fileId + ")");
+//		}
+//		log.info("[진행] : AI 전송 대상 DTO {}건 생성 완료", dtoList.size());
+//
+//		return sendBatchWithRetry(dtoList, props.getRetryMaxAttempts(), props.getRetryDelayMs(), 1);
+//	}
+//
 	// ======= RestTemplate, HttpRequest 생성 분리 =======
 	private RestTemplate createRestTemplate() {
 		SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();

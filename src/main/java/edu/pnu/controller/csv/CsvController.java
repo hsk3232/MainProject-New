@@ -147,7 +147,7 @@ public class CsvController {
 		try {
 			log.info("[진입] : [CsvController] 재전송 진입");
 	        Future<Void> future = executor.submit(() -> {
-	            dataShareService.sendDataAndSaveResult(fileId);
+	            dataShareService.sendAndReceiveFromAi(fileId);
 	            log.info("[성공]: [CsvController] 재전송 성공 \n");
 	            return null;
 	        });

@@ -92,10 +92,7 @@ public class CsvSaveService {
 
 			// Step 2: AI 서버로 데이터 전송 및 분석
 			webSocketService.sendMessage(userId, "AI 분석 중 (시간이 걸릴 수 있습니다)");
-			dataShareService.sendDataAndSaveResult(fileId);
-			
-			ImportDatafromAiDTO result = dataShareService.sendAndReceiveFromAi(fileId);
-			dataApplyService.applyAnomalyResult(result);
+			 dataShareService.sendAndReceiveFromAi(fileId);
 			
 			// Step 3: 통계 생성
 			webSocketService.sendMessage(userId, "통계 데이터 생성 중");

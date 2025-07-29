@@ -105,6 +105,5 @@ public interface EventHistoryRepository extends JpaRepository<EventHistory, Long
     	    WHERE e.csv.fileId = :fileId
     	    ORDER BY e.epc.epcCode ASC, e.eventTime ASC
     	""")
-    	Stream<EventHistory> streamByFileIdOrderByEpcCodeAndEventTime(@Param("fileId") Long fileId);
-
+    	Stream<EventHistory> streamByCsvFileIdOrderByEpcCodeAndEventTime(@Param("fileId") Long fileId);
 }
