@@ -4,7 +4,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -66,7 +65,7 @@ public class DashboardController {
 	        @RequestParam(required = false) String epcCode) {
 
 	    // 커서 방식 서비스 호출 (fileId 파라미터 없음)
-	    List<AnalyzedTripDTO> dtoList = dashboardService.getAnomaliesCursor(limit, cursor, epcCode, epcLot);
+	    List<AnalyzedTripDTO> dtoList = dashboardService.getAnomaliesList(limit, cursor, epcCode, epcLot);
 
 	    Map<String, Object> response = new HashMap<>();
 	    response.put("data", dtoList);

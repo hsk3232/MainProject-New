@@ -1,7 +1,5 @@
 package edu.pnu.service.statistics;
 
-import java.util.List;
-
 import org.springframework.stereotype.Service;
 
 import edu.pnu.domain.KPIAnalysis;

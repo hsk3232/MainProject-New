@@ -11,10 +11,7 @@ import edu.pnu.domain.EventHistory;
 public interface AiDataRepository extends JpaRepository<AiData, Long> {
 	Optional<AiData> findByEventHistory(EventHistory eventHistory);
 
-	Optional<AiData> findByEventHistory_EventId(Long eventId);
+	 List<AiData> findByEventHistory_EventIdIn(List<Long> eventIds);
 
-	
-	List<AiData> findByEventHistory_EventIdIn(List<Long> eventIds);
-	
 
 }

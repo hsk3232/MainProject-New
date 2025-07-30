@@ -46,6 +46,9 @@ public class LogisticsFlowValidatorService {
     }
 
 
+    /**
+     * findViolations 메소드: AnalyzedTrip의 필드 구조 변경에 맞춰 수정되었습니다.
+     */
     public Set<Long> findViolations(List<AnalyzedTrip> trips) {
         Set<Long> violations = new HashSet<>();
         if (trips == null || trips.isEmpty()) {
@@ -65,11 +68,11 @@ public class LogisticsFlowValidatorService {
 
             // 2. 개별 경로 유효성 검사: 현재 경로가 그 자체로 유효한 규칙인지 확인
             TransitionRule actualRule = new TransitionRule(
-                currentTrip.getFromBusinessStep(), currentTrip.getToBusinessStep(),
-                currentTrip.getFromEventType(), currentTrip.getToEventType(),
-                currentTrip.getFromLocation().getLocationId(), 
-                currentTrip.getToLocation().getLocationId()
-            );
+                    currentTrip.getFromBusinessStep(), currentTrip.getToBusinessStep(),
+                    currentTrip.getFromEventType(), currentTrip.getToEventType(),
+                    currentTrip.getFromLocationId(), 
+                    currentTrip.getToLocationId()
+                );
 
             if (!validRules.contains(actualRule)) {
                 violations.add(currentTrip.getRoadId());
@@ -81,8 +84,8 @@ public class LogisticsFlowValidatorService {
 
                 // 이전 경로의 '도착지' 정보가 현재 경로의 '출발지' 정보와 완벽하게 일치하는지 확인
                 boolean isConnected = Objects.equals(previousTrip.getToBusinessStep(), currentTrip.getFromBusinessStep()) &&
-                                      Objects.equals(previousTrip.getToEventType(), currentTrip.getFromEventType()) &&
-                                      Objects.equals(previousTrip.getToLocation().getLocationId(), currentTrip.getFromLocation().getLocationId());
+                        Objects.equals(previousTrip.getToEventType(), currentTrip.getFromEventType()) &&
+                        Objects.equals(previousTrip.getToLocationId(), currentTrip.getFromLocationId());
 
                 if (!isConnected) {
                     // 경로의 연결이 끊어졌으므로 현재 경로를 비정상으로 판단

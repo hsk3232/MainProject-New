@@ -16,6 +16,11 @@ import edu.pnu.domain.EventHistory;
 import edu.pnu.domain.Location;
 
 public interface EventHistoryRepository extends JpaRepository<EventHistory, Long> {
+	
+	Optional<EventHistory> findFirstByEpc_EpcCodeAndEventTimeLessThanOrderByEventTimeDesc(String epcCode, LocalDateTime eventTime);
+	
+	
+	
 
 	// 검색(필터) + 커서 페이징
 	List<EventHistory> findByEventTypeAndEventIdLessThanOrderByEventIdDesc(String eventType, Long cursor,
@@ -36,6 +41,14 @@ public interface EventHistoryRepository extends JpaRepository<EventHistory, Long
 	Optional<EventHistory> findFirstByLocationOrderByEventTimeDesc(Location l);
 
 	List<EventHistory> findAllByOrderByEpc_EpcCodeAscEventTimeAsc();
+	
+	 @Query("""
+	            SELECT eh FROM EventHistory eh
+	            JOIN FETCH eh.epc e
+	            LEFT JOIN FETCH e.product p
+	            WHERE eh.csv.fileId = :fileId AND eh.anomaly = true
+	            """)
+	    List<EventHistory> findAllByCsv_FileIdAndAnomalyIsTrue(@Param("fileId") Long fileId);
 
 	@Modifying
 	@Query("UPDATE EventHistory e SET e.anomaly = true WHERE e.eventId IN :ids")

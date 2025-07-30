@@ -1,11 +1,10 @@
 package edu.pnu.dto;
 
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
-import edu.pnu.domain.AnalyzedTrip;
-import edu.pnu.domain.Location;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -22,7 +21,7 @@ import lombok.ToString;
 public class AnalyzedTripDTO {
 	private TripPoint from;
 	private TripPoint to;
-	
+
 	private Long fileId;
 	private String epcCode;
 	private String productName;
@@ -32,47 +31,45 @@ public class AnalyzedTripDTO {
 
 	private List<String> anomalyTypeList;
 
-	
 	@Getter
 	@Setter
 	@ToString
 	@NoArgsConstructor
 	@AllArgsConstructor
 	@Builder
-	public static class TripPoint {  // -> from과 to 안에 들어갈 내용을 
-        private String scanLocation;
-        private List<Double> coord; // [longitude, latitude]
-        private Long eventTime;
-        private String businessStep;
-    } 
-	
-	public static AnalyzedTripDTO fromEntity(AnalyzedTrip a) {
-		 Location fromLoc = a.getFromLocation();
-		    Location toLoc = a.getToLocation();
-
-		    TripPoint from = TripPoint.builder()
-		        .scanLocation(fromLoc != null ? fromLoc.getScanLocation() : null)
-		        .coord(fromLoc != null ? List.of(fromLoc.getLongitude(), fromLoc.getLatitude()) : null)
-		        .eventTime(a.getFromEventTime() != null ? a.getFromEventTime().toEpochSecond(ZoneOffset.UTC) : null)
-		        .businessStep(a.getFromBusinessStep())
-		        .build();
-
-		    TripPoint to = TripPoint.builder()
-		        .scanLocation(toLoc != null ? toLoc.getScanLocation() : null)
-		        .coord(toLoc != null ? List.of(toLoc.getLongitude(), toLoc.getLatitude()) : null)
-		        .eventTime(a.getToEventTime() != null ? a.getToEventTime().toEpochSecond(ZoneOffset.UTC) : null)
-		        .businessStep(a.getToBusinessStep())
-		        .build();
-
-		    return AnalyzedTripDTO.builder()
-		        .from(from)
-		        .to(to)
-		        .epcCode(a.getEpc().getEpcCode())
-		        .productName(a.getEpc().getProduct().getProductName())
-		        .epcLot(a.getEpc().getEpcLot())
-		        .eventType(a.getToEventType()) // 출고 or 도착 기준
-		        .roadId(a.getRoadId())
-		        .anomalyTypeList(new ArrayList<>()) // 후처리 시 채움
-		        .build();
+	public static class TripPoint { // -> from과 to 안에 들어갈 내용을
+		private String scanLocation;
+		private List<Double> coord; // [longitude, latitude]
+		private Long eventTime;
+		private String businessStep;
 	}
+
+	 // --- JPA Constructor Expression을 위한 생성자 추가 ---
+    public AnalyzedTripDTO(
+            String fromScanLocation, Double fromLongitude, Double fromLatitude, LocalDateTime fromEventTime, String fromBusinessStep,
+            String toScanLocation, Double toLongitude, Double toLatitude, LocalDateTime toEventTime, String toBusinessStep,
+            Long fileId, String epcCode, String productName, String epcLot, String eventType, Long roadId) {
+
+        this.from = TripPoint.builder()
+                .scanLocation(fromScanLocation)
+                .coord(fromLongitude != null && fromLatitude != null ? List.of(fromLongitude, fromLatitude) : null)
+                .eventTime(fromEventTime != null ? fromEventTime.toEpochSecond(ZoneOffset.UTC) : null)
+                .businessStep(fromBusinessStep)
+                .build();
+        
+        this.to = TripPoint.builder()
+                .scanLocation(toScanLocation)
+                .coord(toLongitude != null && toLatitude != null ? List.of(toLongitude, toLatitude) : null)
+                .eventTime(toEventTime != null ? toEventTime.toEpochSecond(ZoneOffset.UTC) : null)
+                .businessStep(toBusinessStep)
+                .build();
+        
+        this.fileId = fileId;
+        this.epcCode = epcCode;
+        this.productName = productName;
+        this.epcLot = epcLot;
+        this.eventType = eventType;
+        this.roadId = roadId;
+        this.anomalyTypeList = new ArrayList<>(); // 기본값으로 초기화
+    }
 }

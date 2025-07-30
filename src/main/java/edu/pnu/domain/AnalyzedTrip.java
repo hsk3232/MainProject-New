@@ -37,18 +37,16 @@ public class AnalyzedTrip {
     private String fromScanLocation;
     private String toScanLocation;
     
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "from_location_id", insertable = false, updatable = false)
-    private Location fromLocation;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "to_location_id", insertable = false, updatable = false)
-    private Location toLocation;
+    private Long fromLocationId;
+    private Long toLocationId;
     
     private String fromBusinessStep;
     private String toBusinessStep;
     private String fromEventType;
     private String toEventType;
+    private String fromHubType;
+    private String toHubType;
+    
     private LocalDateTime fromEventTime;
     private LocalDateTime toEventTime;
     

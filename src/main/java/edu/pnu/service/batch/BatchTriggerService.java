@@ -20,13 +20,13 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class BatchTriggerService {
 
-    private final AnalyzedTripRepository analyzedTripRepo;
-    private final EventHistoryRepository eventHistoryRepo;
-    private final EntityManager entityManager;
+	private final AnalyzedTripRepository analyzedTripRepo;
+	private final EventHistoryRepository eventHistoryRepo;
+	private final EntityManager entityManager;
 
-    private static final int BATCH_SIZE = 1000;
+	private static final int BATCH_SIZE = 1000;
 
-    @Transactional
+	@Transactional
     public void analyzeAndSaveAllTripsBatch(Long fileId) {
         log.info("[시작] : [BatchTriggerService] AnalyzedTrip JPA 배치 insert 시작");
         final int[] total = {0}; // 전체 저장 건수 카운터 -> 람다식 안에서 쓰려고 배열로 선언함.
@@ -37,43 +37,64 @@ public class BatchTriggerService {
         try (Stream<EventHistory> stream = eventHistoryRepo.streamByCsvFileIdOrderByEpcCodeAndEventTime(fileId)) {
         	
             stream.forEach(curr -> {
-                if (prevArr[0] != null && prevArr[0].getEpc().getEpcCode().equals(curr.getEpc().getEpcCode())) {
+            	EventHistory previousEvent = null;
+            	// --- [수정] EPC 그룹의 첫 이벤트를 만났을 때, DB에서 이전 이력을 조회하여 연결고리를 만듭니다. ---
+            	boolean isFirstEventOfEpcInStream = (prevArr[0] == null || !prevArr[0].getEpc().getEpcCode().equals(curr.getEpc().getEpcCode()));
+
+                if (isFirstEventOfEpcInStream) {
+                    // [DB 조회] 이 EPC의 "진짜" 이전 이벤트를 전체 DB에서 찾습니다.
+                    previousEvent = eventHistoryRepo.findFirstByEpc_EpcCodeAndEventTimeLessThanOrderByEventTimeDesc(
+                        curr.getEpc().getEpcCode(),
+                        curr.getEventTime()
+                    ).orElse(null);
+
+                } else {
+                    // 이 스트림에서 같은 EPC의 두 번째 이후 이벤트라면, 메모리에 있는 prevArr[0]를 그대로 사용 (빠름)
+                    previousEvent = prevArr[0];
+                }
+
+                // previousEvent가 존재할 때만 AnalyzedTrip을 생성합니다.
+                if (previousEvent != null) {
                     trips.add(AnalyzedTrip.builder()
-                        .epc(prevArr[0].getEpc())
-                        .fromScanLocation(prevArr[0].getLocation().getScanLocation())
+                        .epc(previousEvent.getEpc())
+                        .fromLocationId(previousEvent.getLocation().getLocationId())
+                        .toLocationId(curr.getLocation().getLocationId())
+                        .fromScanLocation(previousEvent.getLocation().getScanLocation())
                         .toScanLocation(curr.getLocation().getScanLocation())
-                        .fromLocation(prevArr[0].getLocation())
-                        .toLocation(curr.getLocation())
-                        .fromBusinessStep(prevArr[0].getBusinessStep())
+                        .fromBusinessStep(previousEvent.getBusinessStep())
                         .toBusinessStep(curr.getBusinessStep())
-                        .fromEventType(prevArr[0].getEventType())
+                        .fromEventType(previousEvent.getEventType())
                         .toEventType(curr.getEventType())
-                        .fromEventTime(prevArr[0].getEventTime())
+                        .fromHubType(previousEvent.getHubType())
+                        .toHubType(curr.getHubType())
+                        .fromEventTime(previousEvent.getEventTime())
                         .toEventTime(curr.getEventTime())
-                        .csv(curr.getCsv()) // fileId 연관 정보 남기려면
+                        .csv(curr.getCsv())
                         .build());
                 }
+
+                // 배치 처리 로직 (변경 없음)
                 if (trips.size() >= BATCH_SIZE) {
-                    analyzedTripRepo.saveAll(trips);
-                    analyzedTripRepo.flush();
-                    entityManager.clear();
-                    total[0] += trips.size();
-                    log.info("[진행] : {}건 저장 (누적: {}건)", BATCH_SIZE, total[0]);
-                    trips.clear();
+                    saveAndClear(trips, total);
                 }
                 prevArr[0] = curr;
             });
 
-            // 마지막 남은 데이터 저장
+         // 마지막 남은 데이터 저장 (변경 없음)
             if (!trips.isEmpty()) {
-                analyzedTripRepo.saveAll(trips);
-                analyzedTripRepo.flush();
-                entityManager.clear();
-                total[0] += trips.size();
-                log.info("[마지막] : 남은 {}건 저장 (총 누적: {}건)", trips.size(), total[0]);
+                saveAndClear(trips, total);
             }
         }
-
         log.info("[완료] : fileId={} 배치 insert 종료 (총 저장: {}건)", fileId, total[0]);
     }
+        // 중복 코드를 줄이기 위한 헬퍼 메소드
+	private void saveAndClear(List<AnalyzedTrip> trips, int[] total) {
+		analyzedTripRepo.saveAll(trips);
+		analyzedTripRepo.flush();
+		entityManager.clear();
+		total[0] += trips.size();
+		log.info("[진행] : {}건 저장 (누적: {}건)", trips.size(), total[0]);
+		trips.clear();
+	}
+
 }

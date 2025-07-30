@@ -29,12 +29,12 @@ public class Route {
     private String toScanLocation;
     // 🔹 출발지 연관 매핑
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "from_location_id", insertable = false, updatable = false)
+    @JoinColumn(name = "from_location_id")
     private Location fromLocationId;
 
     // 🔹 도착지 연관 매핑
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "to_location_id", insertable = false, updatable = false)
+    @JoinColumn(name = "to_location_id")
     private Location toLocationId;
 
     private String fromBusinessStep;

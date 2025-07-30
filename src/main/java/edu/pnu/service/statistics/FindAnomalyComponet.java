@@ -5,6 +5,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
@@ -16,9 +17,10 @@ import edu.pnu.domain.Epc;
 import edu.pnu.domain.EventHistory;
 import edu.pnu.dto.Triples;
 import edu.pnu.repo.AiDataRepository;
+import edu.pnu.repo.AnalyzedTripRepository;
 import edu.pnu.repo.AssetProductRepository;
 import edu.pnu.repo.EventHistoryRepository;
-import edu.pnu.util.StringUtils;
+import edu.pnu.util.StringUtils; // 사용자 정의 유틸리티 클래스
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,169 +29,197 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class FindAnomalyComponet implements StatisticsInterface {
 
-	// --- 의존성 주입 필드 ---
-	private final EventHistoryRepository eventHistoryRepo;
-	private final AssetProductRepository assetProductRepo;
-	private final AiDataRepository aiDataRepo;
-	private final EpcSerialValidatorService epcSerialValidatorService;
-	private final LogisticsFlowValidatorService logisticsFlowValidatorService;
+    // --- 의존성 주입 필드 ---
+    private final AnalyzedTripRepository analyzedTripRepo;
+    private final EventHistoryRepository eventHistoryRepo;
+    private final AssetProductRepository assetProductRepo;
+    private final AiDataRepository aiDataRepo;
+    private final EpcSerialValidatorService epcSerialValidatorService;
+    private final LogisticsFlowValidatorService logisticsFlowValidatorService;
 
-	@Override
-	public String getProcessorName() {
-		return "이상 종류 판별";
-	}
+    @Override
+    public String getProcessorName() {
+        return "이상 종류 판별";
+    }
 
-	@Override
-	public void process(Long fileId) {
-		log.info("[시작] Product 이상 분석 완료 코드 분류 작업 시작 - fileId: {}", fileId);
+    @Override
+    public void process(Long fileId) {
+        log.info("[시작] Product 이상 분석 완료 코드 분류 작업 시작 - fileId: {}", fileId);
 
-		// 1. 기준 정보 자산(Asset) 로드
-		List<AssetProduct> assetProducts = assetProductRepo.findAll();
+        // 1. 기준 정보 자산(Asset) 전체 로드
+        List<AssetProduct> assetProducts = assetProductRepo.findAll();
 
-		// [1-1] 완전 일치 검출용 Key (product+company+name)의 Set
-		Set<Triples> fullMatchSet = assetProducts.stream()
-				.map(p -> new Triples(StringUtils.normalize(p.getEpcProduct()),
-						StringUtils.normalize(p.getEpcCompany()), StringUtils.normalize(p.getProductName())))
+        // [1-1] 완전 일치 검출용 Key (product+company+name)의 Set
+        // → DB 내 자산(Product)과 완전히 일치해야만 '정상'으로 간주
+        Set<Triples> fullMatchSet = assetProducts.stream()
+            .map(p -> new Triples(
+                StringUtils.normalize(p.getEpcProduct()),
+                StringUtils.normalize(p.getEpcCompany()),
+                StringUtils.normalize(p.getProductName())
+            ))
+            .collect(Collectors.toSet());
 
-				// safe(p.getEpcProduct()), safe(p.getEpcCompany()), safe(p.getProductName())))
-				.collect(Collectors.toSet());
+        // [1-2] 부분 일치 판단용 Set (예: product, company, name 단일 기준)
+        Set<String> knownProducts = assetProducts.stream().map(p -> StringUtils.normalize(p.getEpcProduct())).collect(Collectors.toSet());
+        Set<String> knownCompanies = assetProducts.stream().map(p -> StringUtils.normalize(p.getEpcCompany())).collect(Collectors.toSet());
+        Set<String> knownNames = assetProducts.stream().map(p -> StringUtils.normalize(p.getProductName())).collect(Collectors.toSet());
+        Set<String> knownLots = epcSerialValidatorService.getAllKnownLots();
 
-		// [1-2] 부분 일치 판단용 Set
-		Set<String> knownProducts = assetProducts.stream().map(p -> StringUtils.normalize(p.getEpcProduct())).collect(Collectors.toSet());
-		Set<String> knownCompanies = assetProducts.stream().map(p -> StringUtils.normalize(p.getEpcCompany())).collect(Collectors.toSet());
-		Set<String> knownNames = assetProducts.stream().map(p -> StringUtils.normalize(p.getProductName())).collect(Collectors.toSet());
-		Set<String> knownLots = epcSerialValidatorService.getAllKnownLots();
-		
+        // 2. 현재 파일에서 AI가 '이상'으로 판단한 이벤트 전체 조회 (EventHistory)
+        List<EventHistory> anomalousEventsInFile = eventHistoryRepo.findAllByCsv_FileIdAndAnomalyIsTrue(fileId);
 
-		// 2. 현재 파일에서 AI가 이상으로 판단한 이벤트 목록 확보
-		List<EventHistory> anomalousEventsInFile = eventHistoryRepo.findAllByCsv_FileIdWithEpcAndProduct(fileId)
-				.stream().filter(EventHistory::isAnomaly).toList();
+        if (anomalousEventsInFile.isEmpty()) {
+            log.info("[완료] 분석할 이상 데이터가 없습니다.");
+            return;
+        }
 
-		// 3. 분석 대상 EPC 코드 목록 추출
-		Set<String> epcCodesToCheck = anomalousEventsInFile.stream().map(event -> event.getEpc().getEpcCode())
-				.collect(Collectors.toSet());
+        // 3-1. 분석 대상 EPC 코드 추출 (중복 방지 Set)
+        Set<String> epcCodesToCheck = anomalousEventsInFile.stream()
+            .map(event -> event.getEpc().getEpcCode())
+            .collect(Collectors.toSet());
 
-		if (epcCodesToCheck.isEmpty()) {
-			log.info("[완료] 분석할 이상 데이터가 없습니다.");
-			return;
-		}
+        // 3-2. EPC별 전체 이동 경로(Trip) 조회
+        // - BatchTriggerService가 저장한 AnalyzedTrip이 신뢰 원본이므로 이를 활용
+        List<AnalyzedTrip> fullTripsForEpc = analyzedTripRepo.findFullTripsByEpcCodes(new ArrayList<>(epcCodesToCheck));
+        Map<String, List<AnalyzedTrip>> tripsByEpc = fullTripsForEpc.stream()
+            .collect(Collectors.groupingBy(trip -> trip.getEpc().getEpcCode()));
 
-		// --- 'clone' 판별을 위한 전체 이력 조회 (성능 최적화) ---
-		// 4. 추출된 EPC들의 전체 이동 경로를 DB에서 조회 (시간순 정렬)
-		List<EventHistory> fullHistories = eventHistoryRepo
-				.findFullHistoriesByEpcCodes(new ArrayList<>(epcCodesToCheck));
+        // ★★★ [핵심 최적화] AnalyzedTrip lookup map 생성 ★★★
+        // - 각 EventHistory가 Trip의 도착점인지 빠르게 조회하기 위한 복합키 Map
+        //   (epcCode + toEventTime의 문자열 조합으로 O(1) 매칭)
+        Map<String, AnalyzedTrip> tripLookupMap = fullTripsForEpc.stream()
+            .collect(Collectors.toMap(
+                trip -> trip.getEpc().getEpcCode() + "|" + trip.getToEventTime().toString(),
+                Function.identity(),
+                (existing, replacement) -> existing // 키 중복은 없게 설계돼 있지만 혹시나 대비
+            ));
 
-		// 5. EPC 기준으로 이벤트 이력을 묶음
-		Map<String, List<EventHistory>> historiesByEpc = fullHistories.stream()
-				.collect(Collectors.groupingBy(event -> event.getEpc().getEpcCode()));
+        // 4. clone 검증(이동 경로 위조) - 비정상 Trip의 roadId 목록 확보
+        Set<Long> cloneRoadIds = new HashSet<>();
+        tripsByEpc.forEach((epcCode, tripList) -> {
+            if (tripList != null && !tripList.isEmpty()) {
+                cloneRoadIds.addAll(logisticsFlowValidatorService.findViolations(tripList));
+            }
+        });
 
-		// 6. 각 EPC의 이동 경로를 검증하여 'clone'으로 판별된 이벤트 ID들을 저장
-		Set<Long> cloneEventIds = new HashSet<>();
-		historiesByEpc.forEach((epcCode, eventList) -> {
-            if (eventList == null || eventList.size() < 2) {
-                // 경로를 구성할 이벤트가 2개 미만이면 검사할 수 없음
-                return; 
+        // [추가] 기준 자산(Product) Map - (epcProduct|epcCompany|productName) 복합키로 빠른 접근
+        Map<String, AssetProduct> assetProductKeyToProduct = assetProducts.stream()
+            .collect(Collectors.toMap(
+                p -> StringUtils.normalize(p.getEpcProduct()) + "|" +
+                     StringUtils.normalize(p.getEpcCompany()) + "|" +
+                     StringUtils.normalize(p.getProductName()),
+                Function.identity(),
+                (existing, replacement) -> existing
+            ));
+
+        // 5. 모든 이상 Event에 대해 최종 anomalyType 판별/저장
+        List<AiData> result = new ArrayList<>();
+        for (EventHistory event : anomalousEventsInFile) {
+            // (1) Trip 매핑키 생성
+            String lookupKey = event.getEpc().getEpcCode() + "|" + event.getEventTime().toString();
+            AnalyzedTrip correspondingTrip = tripLookupMap.get(lookupKey);
+
+            if (correspondingTrip == null) {
+                // Trip과 매칭이 되지 않는 경우 log만 남기고 해당 Event는 이상 데이터로 저장하지 않음 (이론적으로 거의 발생X)
+                log.warn("이상 이벤트(ID: {})에 해당하는 이동(AnalyzedTrip)을 찾지 못해 AiData를 생성하지 않습니다.", event.getEventId());
+                continue;
             }
 
-            // [핵심 수정] List<EventHistory>를 List<AnalyzedTrip>으로 변환합니다.
-            List<AnalyzedTrip> trips = new ArrayList<>();
-            for (int i = 0; i < eventList.size() - 1; i++) {
-                EventHistory fromEvent = eventList.get(i);
-                EventHistory toEvent = eventList.get(i+1);
+            String anomalyType;
+            Epc epc = event.getEpc();
 
-                AnalyzedTrip trip = new AnalyzedTrip();
-                // AnalyzedTrip의 ID는 보통 'to' 이벤트의 ID를 따라갑니다.
-                // 또는 from/to의 event_id를 조합하여 고유 ID를 생성할 수도 있습니다.
-                trip.setRoadId(toEvent.getEventId()); 
+            // (2) EPC에 연결된 Product가 없는 경우: DB 설계/파싱 문제로 간주, 무조건 tamper 처리
+            if (epc.getProduct() == null) {
+                anomalyType = "tamper";
+                log.warn("이상 이벤트(ID: {})의 EPC(Code: {})에 연결된 Product 정보가 없습니다. 'tamper'로 분류합니다.", event.getEventId(), epc.getEpcCode());
+            } else {
+                // (3) [1순위] clone: 정상적이지 않은 물류 이동 경로 탐지
+                if (cloneRoadIds.contains(correspondingTrip.getRoadId())) {
+                    anomalyType = "clone";
+                }
+                // (4) [2순위] 제품 정보(Product 기준) 불일치 - tamper/fake
+                else {
+                    Triples current = new Triples(
+                        StringUtils.normalize(epc.getProduct().getEpcProduct()),
+                        StringUtils.normalize(epc.getProduct().getEpcCompany()),
+                        StringUtils.normalize(epc.getProduct().getProductName())
+                    );
 
-                // From 정보 설정
-                trip.setFromBusinessStep(fromEvent.getBusinessStep());
-                trip.setFromEventType(fromEvent.getEventType());
-                trip.setFromLocation(fromEvent.getLocation());;
+                    if (!fullMatchSet.contains(current)) {
+                        // 완전 일치하는 자산이 없을 때: 부분 일치 + 기타 조건으로 tamper/fake 구분
+                        int serial = -1;
+                        try {
+                            serial = Integer.parseInt(epc.getEpcSerial());
+                        } catch (NumberFormatException e) {
+                            log.warn("tamper/fake 판별 중 시리얼 번호 파싱 실패. event_id: {}, serial: {}", event.getEventId(), epc.getEpcSerial());
+                        }
+                        if (knownProducts.contains(current.getEpcProduct())
+                                || knownCompanies.contains(current.getEpcCompany())
+                                || knownNames.contains(current.getProductName())
+                                || knownLots.contains(epc.getEpcLot())
+                                || epcSerialValidatorService.isPotentiallyValidSerial(serial)) {
+                            anomalyType = "tamper";
+                        } else {
+                            anomalyType = "fake";
+                        }
+                    }
+                    // (5) [3순위] 완전 일치할 경우에도 EPC 태그 정보 위변조 여부 추가 검사
+                    else {
+                        String eventProductKey =
+                            StringUtils.normalize(epc.getProduct().getEpcProduct()) + "|" +
+                            StringUtils.normalize(epc.getProduct().getEpcCompany()) + "|" +
+                            StringUtils.normalize(epc.getProduct().getProductName());
+                        AssetProduct assetProduct = assetProductKeyToProduct.get(eventProductKey);
 
-                // To 정보 설정
-                trip.setToBusinessStep(toEvent.getBusinessStep());
-                trip.setToEventType(toEvent.getEventType());
-                trip.setToLocation(toEvent.getLocation());;
-                
-                trips.add(trip);
+                        // (5-1) EPC 태그에 기재된 product/company가 실제 기준 자산 Product와 일치하는지 재검증
+                        boolean isTagConsistent = false;
+                        if (assetProduct != null) {
+                            isTagConsistent = StringUtils.normalize(assetProduct.getEpcCompany())
+                                    .equals(StringUtils.normalize(epc.getProduct().getEpcCompany()))
+                                    && StringUtils.normalize(assetProduct.getEpcProduct())
+                                        .equals(StringUtils.normalize(epc.getProduct().getEpcProduct()));
+                        }
+                        if (!isTagConsistent) {
+                            anomalyType = "tamper";
+                        } else {
+                            // (5-2) EPC 태그 정보까지 일치할 때: 생산공장, lot, serial 일치까지 검증
+                            List<AnalyzedTrip> epcTrips = tripsByEpc.get(epc.getEpcCode());
+                            String originalHubType = "UNKNOWN";
+                            if (epcTrips != null && !epcTrips.isEmpty()) {
+                                originalHubType = epcTrips.get(0).getFromHubType();
+                            }
+                            String factory = epcSerialValidatorService.extractFactoryFromName(originalHubType);
+                            String lot = epc.getEpcLot();
+                            try {
+                                int serialNumber = Integer.parseInt(epc.getEpcSerial());
+                                if (epcSerialValidatorService.isValid(factory, lot, serialNumber)) {
+                                    anomalyType = "error";   // (5-2-1) 모든 조건이 일치하면 error(=AI 오탐)로 분류
+                                } else {
+                                    anomalyType = "tamper"; // (5-2-2) lot/serial이 실제 규칙과 다르면 tamper
+                                }
+                            } catch (NumberFormatException e) {
+                                anomalyType = "tamper";
+                                log.warn("시리얼 번호 파싱 실패. event_id: {}, serial: {}", event.getEventId(), epc.getEpcSerial());
+                            }
+                        }
+                    }
+                }
             }
-            
-            // 이제 변환된 'trips' 리스트로 검증을 수행합니다.
-            if (!trips.isEmpty()) {
-                cloneEventIds.addAll(logisticsFlowValidatorService.findViolations(trips));
-            }
-		});
+            // [결과 저장] : EventHistory, anomalyType, Trip 정보 함께 AiData로 저장
+            result.add(AiData.builder()
+                .eventHistory(event)
+                .anomalyType(anomalyType)
+                .analyzedTrip(correspondingTrip)
+                .build());
+        }
 
-		// --- 'clone' 판별 로직 종료 ---
+        // 6. 결과를 DB에 일괄 저장
+        aiDataRepo.saveAll(result);
+        log.info("[완료] Product 이상 분석 완료 - 저장된 AiData 수: {}", result.size());
+    }
 
-		// ------ AI 이상 이벤트 분류: 위조, 변조, 복제, 오탐 ------------//
-		// 결과 저장용 객체 리스트
-		List<AiData> result = new ArrayList<>();
-
-		// 7. 현재 파일의 이상 이벤트들을 하나씩 최종 판별
-		for (EventHistory event : anomalousEventsInFile) {
-			String anomalyType;
-			Epc epc = event.getEpc();
-
-			// [수정] 1순위: 'clone' 판별
-			if (cloneEventIds.contains(event.getEventId())) {
-				anomalyType = "clone";
-			} else {
-				// 'clone'이 아닌 경우, 제품 정보 및 태그 유효성 판별
-				Triples current = new Triples(
-						StringUtils.normalize(epc.getProduct().getEpcProduct()),
-						StringUtils.normalize(epc.getProduct().getEpcCompany()),
-						StringUtils.normalize(epc.getProduct().getProductName()));
-
-				// 2순위 판별: 제품 정보 정상 여부 (제품 정보가 정상이 아닐 경우)
-				if (!fullMatchSet.contains(current)) {
-
-					int serial = -1;
-					try {
-						serial = Integer.parseInt(epc.getEpcSerial());
-					} catch (NumberFormatException e) {
-						log.warn("tamper/fake 판별 중 시리얼 번호 파싱 실패. event_id: {}, serial: {}", event.getEventId(),
-								epc.getEpcSerial());
-					}
-					
-					if (knownProducts.contains(current.getEpcProduct()) || knownCompanies.contains(current.getEpcCompany())
-                            || knownNames.contains(current.getProductName()) || knownLots.contains(epc.getEpcLot())
-                            || epcSerialValidatorService.isPotentiallyValidSerial(serial)) {
-						anomalyType = "tamper"; // 5개 중 하나라도 도용
-					} else {
-						anomalyType = "fake"; // 5개 모두 완전 창작
-					}
-
-				} else {
-					// --- 3순위: AI 오탐 여부 ('error'/'tamper') ---
-					String originalHubType = historiesByEpc.get(epc.getEpcCode()).get(0).getHubType();;
-					String factory = epcSerialValidatorService.extractFactoryFromName(originalHubType);
-					String lot = epc.getEpcLot();
-					
-				
-					try {
-						int serialNumber = Integer.parseInt(epc.getEpcSerial());
-						if (epcSerialValidatorService.isValid(factory, lot, serialNumber)) {
-							anomalyType = "error"; // 모든 것이 완벽히 정상
-						} else {
-							anomalyType = "tamper"; // 정상 제품에 EPC 태그만 위조
-						}
-					} catch (NumberFormatException e) {
-						anomalyType = "tamper";
-						log.warn("시리얼 번호 파싱 실패. event_id: {}, serial: {}", event.getEventId(), epc.getEpcSerial());
-					}
-				}
-			}
-			result.add(AiData.builder().eventHistory(event).anomalyType(anomalyType).build());
-		}
-		aiDataRepo.saveAll(result);
-		log.info("[완료] Product 이상 분석 완료 - 저장된 AiData 수: {}", result.size());
-	}
-
-	@Override
-	public int getOrder() {
-		return 2;
-	}
-
+    @Override
+    public int getOrder() {
+        return 2;
+    }
 }

@@ -1,7 +1,6 @@
 package edu.pnu.domain;
 
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -29,13 +28,16 @@ public class AiData {
 	Long aiId;
 	
 	
-	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name="event_id")
-	private EventHistory eventHistory;
+	 @ManyToOne
+     @JoinColumn(name = "event_id")
+     private EventHistory eventHistory;
+
 	
 	private String anomalyType;
 	
-	
+	 @ManyToOne
+     @JoinColumn(name = "file_id")
+     private AnalyzedTrip analyzedTrip;
 
 	
 }

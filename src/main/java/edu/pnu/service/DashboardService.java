@@ -7,7 +7,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
-import edu.pnu.domain.AnalyzedTrip;
 import edu.pnu.domain.EventHistory;
 import edu.pnu.dto.AnalyzedTripDTO;
 import edu.pnu.dto.NodeDTO;
@@ -67,14 +66,13 @@ public class DashboardService {
 //
 //		return entityPage.map(a -> AnalyzedTripDTO.fromEntity(a));
 //	}
-	
-	public List<AnalyzedTripDTO> getAnomaliesCursor(
-	        int limit, Long cursor, String epcCode, String epcLot) {
+
+	public List<AnalyzedTripDTO> getAnomaliesList(int limit, Long cursor, String epcCode, String epcLot) {
 	    Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "roadId"));
-	    List<AnalyzedTrip> entityList = analyzedTripRepository.findAnomaliesWithCursorAndSearch(
-	        cursor, epcCode, epcLot, pageable);
-	    return entityList.stream()
-	        .map(AnalyzedTripDTO::fromEntity)
-	        .toList();
+	    List<AnalyzedTripDTO> dtoList = analyzedTripRepository.findAnomaliesAsDTOWithCursor(
+	            cursor, epcCode, epcLot, pageable);
+	            
+	    // 여기서는 더 이상 .map() 으로 변환할 필요가 없습니다.
+	    return dtoList;
 	}
 }
