@@ -8,36 +8,30 @@ import java.util.stream.Stream;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import edu.pnu.domain.EventHistory;
 import edu.pnu.domain.Location;
+import edu.pnu.dto.InventoryDTO;
+import edu.pnu.dto.TimeRangeDTO;
 
-public interface EventHistoryRepository extends JpaRepository<EventHistory, Long> {
+public interface EventHistoryRepository extends JpaRepository<EventHistory, Long>, JpaSpecificationExecutor<EventHistory> {
 	
 	Optional<EventHistory> findFirstByEpc_EpcCodeAndEventTimeLessThanOrderByEventTimeDesc(String epcCode, LocalDateTime eventTime);
 	
-	
-	
 
-	// 검색(필터) + 커서 페이징
-	List<EventHistory> findByEventTypeAndEventIdLessThanOrderByEventIdDesc(String eventType, Long cursor,
-			Pageable pageable);
-
-	List<EventHistory> findByEpc_EpcCodeAndEventIdLessThanOrderByEventIdDesc(String epcCode, Long cursor,
-			Pageable pageable);
-
-	List<EventHistory> findByBusinessStepAndEventTimeBetweenAndEventIdLessThanOrderByEventIdDesc(String businessStep,
-			LocalDateTime min, LocalDateTime max, Long cursor, Pageable pageable);
 
 	// epcCode별 이벤트 시간순 정렬
 	List<EventHistory> findByEpc_EpcCodeOrderByEventTimeAsc(String epcCode);
 
 	@Query("SELECT eh FROM EventHistory eh JOIN FETCH eh.epc e JOIN FETCH e.product p JOIN FETCH eh.location l WHERE eh.csv.fileId = :fileId")
 	List<EventHistory> findAllByCsv_FileIdWithEpcAndProduct(@Param("fileId") Long fileId);
-
+	
+	
+	// [DashboardController].getNodeList
 	Optional<EventHistory> findFirstByLocationOrderByEventTimeDesc(Location l);
 
 	List<EventHistory> findAllByOrderByEpc_EpcCodeAscEventTimeAsc();
@@ -119,4 +113,72 @@ public interface EventHistoryRepository extends JpaRepository<EventHistory, Long
     	    ORDER BY e.epc.epcCode ASC, e.eventTime ASC
     	""")
     	Stream<EventHistory> streamByCsvFileIdOrderByEpcCodeAndEventTime(@Param("fileId") Long fileId);
+
+    
+    @Query("""
+            SELECT DISTINCT l.scanLocation
+            FROM EventHistory eh JOIN eh.location l
+            WHERE eh.csv.fileId = :fileId AND l.scanLocation IS NOT NULL
+            ORDER BY l.scanLocation
+            """)
+    List<String> findDistinctScanLocationsByFileId(@Param("fileId") Long fileId);
+
+    
+    //[추가] 필터 옵션: eventTime의 최소/최대 범위를 조회합니다.
+    @Query("""
+            SELECT new edu.pnu.dto.TimeRangeDTO(MIN(e.eventTime), MAX(e.eventTime))
+            FROM EventHistory e
+            WHERE e.csv.fileId = :fileId
+            """)
+    TimeRangeDTO findEventTimeRangeByFileId(@Param("fileId") Long fileId);
+
+    
+    //[추가] 필터 옵션: 고유한 businessStep 목록을 조회합니다.
+    @Query("""
+            SELECT DISTINCT e.businessStep
+            FROM EventHistory e
+            WHERE e.csv.fileId = :fileId AND e.businessStep IS NOT NULL
+            ORDER BY e.businessStep
+            """)
+    List<String> findDistinctBusinessStepsByFileId(@Param("fileId") Long fileId);
+
+    
+    //[추가] 필터 옵션: 고유한 productName 목록을 조회합니다.
+    @Query("""
+            SELECT DISTINCT p.productName
+            FROM EventHistory eh JOIN eh.epc e JOIN e.product p
+            WHERE eh.csv.fileId = :fileId AND p.productName IS NOT NULL
+            ORDER BY p.productName
+            """)
+    List<String> findDistinctProductNamesByFileId(@Param("fileId") Long fileId);
+
+    
+    //[추가] 필터 옵션: 고유한 eventType 목록을 조회합니다.
+    @Query("""
+            SELECT DISTINCT e.eventType
+            FROM EventHistory e
+            WHERE e.csv.fileId = :fileId AND e.eventType IS NOT NULL
+            ORDER BY e.eventType
+            """)
+    List<String> findDistinctEventTypesByFileId(@Param("fileId") Long fileId);
+    
+    
+    @Query("""
+            SELECT new edu.pnu.dto.InventoryDTO(
+                e.businessStep,
+                SUM(
+                    CASE
+                        WHEN e.eventType LIKE '%_Inbound' THEN 1L
+                        WHEN e.eventType LIKE '%_Outbound' THEN -1L
+                        ELSE 0L
+                    END
+                )
+            )
+            FROM EventHistory e
+            WHERE e.csv.fileId = :fileId
+            GROUP BY e.businessStep
+            ORDER BY e.businessStep
+            """)
+    List<InventoryDTO> calculateInventoryByBusinessStep(@Param("fileId") Long fileId);
+
 }

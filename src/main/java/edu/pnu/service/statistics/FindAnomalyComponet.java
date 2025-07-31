@@ -45,7 +45,10 @@ public class FindAnomalyComponet implements StatisticsInterface {
     @Override
     public void process(Long fileId) {
         log.info("[시작] Product 이상 분석 완료 코드 분류 작업 시작 - fileId: {}", fileId);
-
+        
+        //[추가] ★★★ 가장 중요한 해결책: 분석 시작 전, 이전 분석 결과(물)를 모두 비웁니다. ★★★
+//        aiDataRepo.deleteByFileId(fileId);
+        
         // 1. 기준 정보 자산(Asset) 전체 로드
         List<AssetProduct> assetProducts = assetProductRepo.findAll();
 
@@ -89,7 +92,7 @@ public class FindAnomalyComponet implements StatisticsInterface {
         //   (epcCode + toEventTime의 문자열 조합으로 O(1) 매칭)
         Map<String, AnalyzedTrip> tripLookupMap = fullTripsForEpc.stream()
             .collect(Collectors.toMap(
-                trip -> trip.getEpc().getEpcCode() + "|" + trip.getToEventTime().toString(),
+                trip -> trip.getEpc().getEpcCode() + "|" +  (trip.getToEventTime() != null ? trip.getToEventTime().toString() : "NULL"),
                 Function.identity(),
                 (existing, replacement) -> existing // 키 중복은 없게 설계돼 있지만 혹시나 대비
             ));
@@ -118,15 +121,24 @@ public class FindAnomalyComponet implements StatisticsInterface {
             // (1) Trip 매핑키 생성
             String lookupKey = event.getEpc().getEpcCode() + "|" + event.getEventTime().toString();
             AnalyzedTrip correspondingTrip = tripLookupMap.get(lookupKey);
-
+            String anomalyType;
+            Epc epc = event.getEpc();
+            
             if (correspondingTrip == null) {
-                // Trip과 매칭이 되지 않는 경우 log만 남기고 해당 Event는 이상 데이터로 저장하지 않음 (이론적으로 거의 발생X)
-                log.warn("이상 이벤트(ID: {})에 해당하는 이동(AnalyzedTrip)을 찾지 못해 AiData를 생성하지 않습니다.", event.getEventId());
+            	if (!"Factory".equals(event.getBusinessStep())) {
+            		anomalyType = "other";
+            		result.add(AiData.builder()
+            	            .eventHistory(event)
+            	            .anomalyType(anomalyType)
+            	            .analyzedTrip(null)
+            	            .csv(event.getCsv())
+            	            .build());
+                log.warn("이상 이벤트(ID: {})에 해당하는 이동(AnalyzedTrip)을 찾지 못해 'other'로 분류합니다.", event.getEventId());
+            	}
                 continue;
             }
 
-            String anomalyType;
-            Epc epc = event.getEpc();
+            
 
             // (2) EPC에 연결된 Product가 없는 경우: DB 설계/파싱 문제로 간주, 무조건 tamper 처리
             if (epc.getProduct() == null) {
@@ -193,7 +205,7 @@ public class FindAnomalyComponet implements StatisticsInterface {
                             try {
                                 int serialNumber = Integer.parseInt(epc.getEpcSerial());
                                 if (epcSerialValidatorService.isValid(factory, lot, serialNumber)) {
-                                    anomalyType = "error";   // (5-2-1) 모든 조건이 일치하면 error(=AI 오탐)로 분류
+                                    anomalyType = "other";   // (5-2-1) 모든 조건이 일치하면 error(=AI 오탐)로 분류
                                 } else {
                                     anomalyType = "tamper"; // (5-2-2) lot/serial이 실제 규칙과 다르면 tamper
                                 }
@@ -210,6 +222,7 @@ public class FindAnomalyComponet implements StatisticsInterface {
                 .eventHistory(event)
                 .anomalyType(anomalyType)
                 .analyzedTrip(correspondingTrip)
+                .csv(event.getCsv())
                 .build());
         }
 

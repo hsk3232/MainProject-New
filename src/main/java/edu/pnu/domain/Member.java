@@ -57,8 +57,6 @@ public class Member {
     @Column(updatable = false, name = "created_at")
     private LocalDateTime createdAt;
     
-    private boolean auth;
-    private boolean del;
-    private boolean status;
+    private String status;
 	
 }

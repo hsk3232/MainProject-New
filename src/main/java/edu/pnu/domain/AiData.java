@@ -36,8 +36,12 @@ public class AiData {
 	private String anomalyType;
 	
 	 @ManyToOne
-     @JoinColumn(name = "file_id")
+     @JoinColumn(name = "road_id")
      private AnalyzedTrip analyzedTrip;
+	 
+	 @ManyToOne
+	 @JoinColumn(name="file_id")
+	 private Csv csv;
 
 	
 }

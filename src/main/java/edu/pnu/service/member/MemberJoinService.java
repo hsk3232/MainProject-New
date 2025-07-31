@@ -1,11 +1,15 @@
 package edu.pnu.service.member;
 
+import java.util.Optional;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import edu.pnu.domain.Member;
 import edu.pnu.dto.MemberJoinDTO;
 import edu.pnu.exception.BadRequestException;
+import edu.pnu.exception.NoDataFoundException;
+import edu.pnu.exception.UnauthorizedException;
 import edu.pnu.repo.MemberRepository;
 import lombok.RequiredArgsConstructor;
 
@@ -26,7 +30,7 @@ public class MemberJoinService {
         // 회원가입 정보 저장 및 암호 해시
 		Member m = dto.toEntity();
 		m.setPassword(passwordEncoder.encode(dto.getPassword()));
-		
+		m.setStatus("pending");
 		memberRepo.save(m);
 	}
 
@@ -40,5 +44,23 @@ public class MemberJoinService {
 		}
 		return exist;
 	}
+	
+
+	public void checkUnauthStatus(String userId) {
+		Member m = memberRepo.findByUserId(userId)
+    			.orElseThrow(() -> new IllegalArgumentException("[오류] 회원 정보가 없습니다: "));
+
+        String status = m.getStatus();
+        if (status == null) {
+            throw new NoDataFoundException("[오류] 상태 정보가 없습니다: " + userId);
+        }
+
+        // 상태가 승인 대기, 거절, 삭제 등 인가 안된 상태면 예외 처리
+        if ("pending".equalsIgnoreCase(status) || "rejected".equalsIgnoreCase(status) || "del".equalsIgnoreCase(status)) {
+            throw new UnauthorizedException("인가되지 않은 사용자입니다: " + userId);
+        }
+        
+    }
+	
 	
 }

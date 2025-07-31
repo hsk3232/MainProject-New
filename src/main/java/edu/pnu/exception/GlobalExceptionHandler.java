@@ -80,10 +80,16 @@ public class GlobalExceptionHandler {
     }
     
     //NodeList를 만들지 못할 때
-    @ExceptionHandler(NodeNotFoundException.class)
-    public ResponseEntity<?> handleNodeNotFoundException(NodeNotFoundException ex) {
+    @ExceptionHandler(NotFoundExceptions.class)
+    public ResponseEntity<String> NotFoundExceptions(NotFoundExceptions ex) {
+        log.error("NotFoundException", ex);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
+    
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<?> UnauthorizedException(NodeNotFoundException ex) {
     	return ResponseEntity
-    			.status(HttpStatus.NO_CONTENT)
+    			.status(HttpStatus.FORBIDDEN)
     			.body("Node List 생성 오류" + ex.getMessage());
     }
 

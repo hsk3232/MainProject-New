@@ -5,8 +5,11 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import edu.pnu.domain.Csv;
+import edu.pnu.dto.ReportCoverDTO;
 
 public interface CsvRepository extends JpaRepository<Csv, Long> {
 	
@@ -30,5 +33,21 @@ public interface CsvRepository extends JpaRepository<Csv, Long> {
 	
 	Optional<Csv> findTopByOrderByFileIdDesc();
 
-	
+	@Query("""
+	        SELECT new edu.pnu.dto.ReportCoverDTO(
+	            c.fileName,
+	            m.userName,
+	            l.locationId,
+	            c.createdAt,
+	            (SELECT MIN(e.eventTime) FROM EventHistory e WHERE e.csv.fileId = c.fileId),
+	            (SELECT MAX(e.eventTime) FROM EventHistory e WHERE e.csv.fileId = c.fileId)
+	        )
+	        FROM Csv c
+	        JOIN c.member m
+	        JOIN EventHistory e ON e.csv.fileId = c.fileId
+	        JOIN e.location l
+	        WHERE c.fileId = :fileId
+	        """)
+	    Optional<ReportCoverDTO> findReportCoverByFileId(@Param("fileId") Long fileId);
+    
 }

@@ -7,7 +7,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import edu.pnu.dto.dataShare.ImportAiDataDTO;
 import edu.pnu.dto.dataShare.ImportDatafromAiDTO;
-import edu.pnu.exception.NoDataFoundException;
 import edu.pnu.repo.EventHistoryRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;

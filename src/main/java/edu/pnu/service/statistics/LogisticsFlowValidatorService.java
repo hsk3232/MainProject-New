@@ -65,7 +65,8 @@ public class LogisticsFlowValidatorService {
         // --- 검증 규칙 2 & 3: 전체 경로 순회 검사 ---
         for (int i = 0; i < trips.size(); i++) {
             AnalyzedTrip currentTrip = trips.get(i);
-
+            
+            
             // 2. 개별 경로 유효성 검사: 현재 경로가 그 자체로 유효한 규칙인지 확인
             TransitionRule actualRule = new TransitionRule(
                     currentTrip.getFromBusinessStep(), currentTrip.getToBusinessStep(),
