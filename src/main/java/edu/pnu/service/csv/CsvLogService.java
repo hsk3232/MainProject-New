@@ -17,6 +17,7 @@ import edu.pnu.domain.Csv;
 import edu.pnu.dto.CsvFileListResponseDTO;
 import edu.pnu.exception.CsvFileNotFoundException;
 import edu.pnu.exception.CsvFilePathNotFoundException;
+import edu.pnu.exception.UnauthorizedException;
 import edu.pnu.repo.CsvRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,22 +53,24 @@ public class CsvLogService {
     
     
     // 업로드된 file 목록 조회, 커서 페이징 사용
-    public List<CsvFileListResponseDTO> getFileListByCursor(Long cursor, int size, String search) {
+    public List<CsvFileListResponseDTO> getFileListByCursor(    Long cursor, int size, String search, Long locationId) {
         Pageable pageable = PageRequest.of(0, size, Sort.by(Sort.Direction.DESC, "fileId"));
         List<Csv> csvList;
 
         if (search != null && !search.isBlank()) {
             if (cursor == null) {
-            	
-                csvList = csvRepo.findByFileNameContainingOrderByFileIdDesc(search, pageable);
+                csvList = csvRepo.findByMember_LocationIdAndFileNameContainingOrderByFileIdDesc(
+                    locationId, search, pageable);
             } else {
-                csvList = csvRepo.findByFileIdLessThanAndFileNameContainingOrderByFileIdDesc(cursor, search, pageable);
+                csvList = csvRepo.findByMember_LocationIdAndFileIdLessThanAndFileNameContainingOrderByFileIdDesc(
+                    locationId, cursor, search, pageable);
             }
         } else {
             if (cursor == null) {
-                csvList = csvRepo.findAllByOrderByFileIdDesc(pageable);
+                csvList = csvRepo.findByMember_LocationIdOrderByFileIdDesc(locationId, pageable);
             } else {
-                csvList = csvRepo.findByFileIdLessThanOrderByFileIdDesc(cursor, pageable);
+                csvList = csvRepo.findByMember_LocationIdAndFileIdLessThanOrderByFileIdDesc(
+                    locationId, cursor, pageable);
             }
         }
 
@@ -75,7 +78,6 @@ public class CsvLogService {
             throw new CsvFileNotFoundException("[오류] : [CsvLogService] 조회된 파일이 없음 (검색어= " + search + ")");
         }
 
-        // DTO 변환
         return csvList.stream()
                       .map(CsvFileListResponseDTO::fromEntity)
                       .toList();

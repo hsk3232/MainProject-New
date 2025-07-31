@@ -27,6 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import edu.pnu.config.CustomUserDetails;
+import edu.pnu.domain.Csv;
 import edu.pnu.dto.CsvFileListResponseDTO;
 import edu.pnu.exception.NoDataFoundException;
 import edu.pnu.service.csv.CsvLogService;
@@ -87,10 +88,12 @@ public class CsvController {
 	// 업로드된 file 목록 조회
 		@GetMapping("/upload/filelist")
 		public Map<String, Object> getFileListByCursor(@RequestParam(required = false) Long cursor,
-				@RequestParam(defaultValue = "50") int size, @RequestParam(required = false) String search) {
+				@RequestParam(defaultValue = "50") int size, @RequestParam(required = false) String search, @AuthenticationPrincipal CustomUserDetails user) {
+			
+		
 			
 			log.info("[진입] : [CsvController] fileList 조회 진입");
-			List<CsvFileListResponseDTO> data = csvLogService.getFileListByCursor(cursor, size, search);
+			List<CsvFileListResponseDTO> data = csvLogService.getFileListByCursor(cursor, size, search, user.getLocationId());
 
 			// nextCursor(다음 커서값) 계산
 			Long nextCursor = (data.size() == size) ? data.get(data.size() - 1).getFileId() : null;
