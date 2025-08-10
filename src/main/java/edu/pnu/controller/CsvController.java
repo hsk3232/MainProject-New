@@ -1,4 +1,4 @@
-package edu.pnu.controller.csv;
+package edu.pnu.controller;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -27,7 +27,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import edu.pnu.config.CustomUserDetails;
-import edu.pnu.domain.Csv;
 import edu.pnu.dto.CsvFileListResponseDTO;
 import edu.pnu.exception.NoDataFoundException;
 import edu.pnu.service.csv.CsvLogService;

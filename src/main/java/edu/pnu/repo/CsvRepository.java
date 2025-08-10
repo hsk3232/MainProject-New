@@ -20,19 +20,19 @@ public interface CsvRepository extends JpaRepository<Csv, Long> {
 	List<Csv> findByMemberUserId(String userId);
 	
 	// 커서 없이, locationId 기준 + 검색어
-	List<Csv> findByMember_LocationIdAndFileNameContainingOrderByFileIdDesc(
+	List<Csv> findByMember_Location_LocationIdAndFileNameContainingOrderByFileIdDesc(
 	    Long locationId, String fileName, Pageable pageable);
 
 	// 커서+검색어
-	List<Csv> findByMember_LocationIdAndFileIdLessThanAndFileNameContainingOrderByFileIdDesc(
+	List<Csv> findByMember_Location_LocationIdAndFileIdLessThanAndFileNameContainingOrderByFileIdDesc(
 	    Long locationId, Long cursor, String fileName, Pageable pageable);
 
 	// 커서 없이 전체
-	List<Csv> findByMember_LocationIdOrderByFileIdDesc(
+	List<Csv> findByMember_Location_LocationIdOrderByFileIdDesc(
 	    Long locationId, Pageable pageable);
 
 	// 커서만
-	List<Csv> findByMember_LocationIdAndFileIdLessThanOrderByFileIdDesc(
+	List<Csv> findByMember_Location_LocationIdAndFileIdLessThanOrderByFileIdDesc(
 	    Long locationId, Long cursor, Pageable pageable);
 
 	// 커서 + 파일명 검색

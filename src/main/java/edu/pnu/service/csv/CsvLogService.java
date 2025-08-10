@@ -59,17 +59,17 @@ public class CsvLogService {
 
         if (search != null && !search.isBlank()) {
             if (cursor == null) {
-                csvList = csvRepo.findByMember_LocationIdAndFileNameContainingOrderByFileIdDesc(
+                csvList = csvRepo.findByMember_Location_LocationIdAndFileNameContainingOrderByFileIdDesc(
                     locationId, search, pageable);
             } else {
-                csvList = csvRepo.findByMember_LocationIdAndFileIdLessThanAndFileNameContainingOrderByFileIdDesc(
+                csvList = csvRepo.findByMember_Location_LocationIdAndFileIdLessThanAndFileNameContainingOrderByFileIdDesc(
                     locationId, cursor, search, pageable);
             }
         } else {
             if (cursor == null) {
-                csvList = csvRepo.findByMember_LocationIdOrderByFileIdDesc(locationId, pageable);
+                csvList = csvRepo.findByMember_Location_LocationIdOrderByFileIdDesc(locationId, pageable);
             } else {
-                csvList = csvRepo.findByMember_LocationIdAndFileIdLessThanOrderByFileIdDesc(
+                csvList = csvRepo.findByMember_Location_LocationIdAndFileIdLessThanOrderByFileIdDesc(
                     locationId, cursor, pageable);
             }
         }

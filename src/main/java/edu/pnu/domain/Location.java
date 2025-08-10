@@ -21,6 +21,7 @@ import lombok.ToString;
 public class Location {
 	@Id
 	private Long locationId;
+	
 	private String scanLocation;
 	private double latitude;
 	private double longitude;
