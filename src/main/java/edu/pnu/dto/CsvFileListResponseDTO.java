@@ -20,6 +20,7 @@ public class CsvFileListResponseDTO {
 	private Long fileId;
 	private String fileName;
 	private String userId;
+	private Long locationId;
 	private Long fileSize;
 	private LocalDateTime createdAt;
 	
@@ -28,6 +29,7 @@ public class CsvFileListResponseDTO {
 				.fileId(c.getFileId())
 				.fileName(c.getFileName())
 				.userId(c.getMember().getUserId())
+				.locationId(c.getMember().getLocation().getLocationId())
 				.fileSize(c.getFileSize())
 				.createdAt(c.getCreatedAt())
 				.build();

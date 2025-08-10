@@ -23,6 +23,13 @@ public class NodeDTO {
 	private String businessStep;
 	private List<Double> coord;
 	
+	public NodeDTO(Location l, EventHistory e) {
+		this.hubType = e.getHubType();
+		this.scanLocation = l.getScanLocation();
+		this.businessStep = e.getBusinessStep();
+		this.coord = List.of(l.getLongitude(), l.getLatitude());
+	}
+	
 	public static NodeDTO fromEntity(Location l, EventHistory e) {
 		return NodeDTO.builder()
 				.hubType(e.getHubType())

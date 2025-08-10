@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
@@ -14,15 +13,19 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import edu.pnu.domain.EventHistory;
-import edu.pnu.domain.Location;
 import edu.pnu.dto.InventoryDTO;
+import edu.pnu.dto.NodeDTO;
 import edu.pnu.dto.TimeRangeDTO;
 
 public interface EventHistoryRepository extends JpaRepository<EventHistory, Long>, JpaSpecificationExecutor<EventHistory> {
 	
 	Optional<EventHistory> findFirstByEpc_EpcCodeAndEventTimeLessThanOrderByEventTimeDesc(String epcCode, LocalDateTime eventTime);
 	
-
+	@Query("SELECT new edu.pnu.dto.NodeDTO(e.location, e) " +
+		       "FROM EventHistory e JOIN e.location l " +
+		       "WHERE (e.location.id, e.eventTime) IN " +
+		       "(SELECT e2.location.id, MAX(e2.eventTime) FROM EventHistory e2 GROUP BY e2.location.id)")
+		List<NodeDTO> findLatestEventHistoryPerLocation();
 
 	// epcCode별 이벤트 시간순 정렬
 	List<EventHistory> findByEpc_EpcCodeOrderByEventTimeAsc(String epcCode);
@@ -31,8 +34,6 @@ public interface EventHistoryRepository extends JpaRepository<EventHistory, Long
 	List<EventHistory> findAllByCsv_FileIdWithEpcAndProduct(@Param("fileId") Long fileId);
 	
 	
-	// [DashboardController].getNodeList
-	Optional<EventHistory> findFirstByLocationOrderByEventTimeDesc(Location l);
 
 	List<EventHistory> findAllByOrderByEpc_EpcCodeAscEventTimeAsc();
 	

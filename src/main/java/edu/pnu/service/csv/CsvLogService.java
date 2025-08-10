@@ -53,7 +53,7 @@ public class CsvLogService {
     
     
     // 업로드된 file 목록 조회, 커서 페이징 사용
-    public List<CsvFileListResponseDTO> getFileListByCursor(    Long cursor, int size, String search, Long locationId) {
+    public List<CsvFileListResponseDTO> getFileListByCursor(Long cursor, int size, String search, Long locationId) {
         Pageable pageable = PageRequest.of(0, size, Sort.by(Sort.Direction.DESC, "fileId"));
         List<Csv> csvList;
 
