@@ -1,6 +1,5 @@
 package edu.pnu.dto;
 
-import edu.pnu.domain.Role;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;

@@ -44,6 +44,8 @@ public class AnalyzedTripDTO {
         private List<Double> coord;
         private Long eventTime;
         private String businessStep;
+        
+        
     }
 
     // JPA Constructor Expression용 생성자

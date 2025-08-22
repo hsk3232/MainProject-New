@@ -165,7 +165,8 @@ public class FindAnomalyComponet implements StatisticsInterface {
                         } catch (NumberFormatException e) {
                             log.warn("tamper/fake 판별 중 시리얼 번호 파싱 실패. event_id: {}, serial: {}", event.getEventId(), epc.getEpcSerial());
                         }
-                        if (knownProducts.contains(current.getEpcProduct())
+                        if (knownProducts.contains(current.getEpcProduct()) 
+                        		// [수정사항] 이 부분 else if로 바꿔서 세부 사항 별로 라벨링 다 따로 하기. table 세부 type column 추가
                                 || knownCompanies.contains(current.getEpcCompany())
                                 || knownNames.contains(current.getProductName())
                                 || knownLots.contains(epc.getEpcLot())

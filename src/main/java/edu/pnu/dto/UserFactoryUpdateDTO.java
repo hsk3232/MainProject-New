@@ -1,6 +1,5 @@
 package edu.pnu.dto;
 
-import edu.pnu.dto.dataShare.ImportAiDataDTO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
