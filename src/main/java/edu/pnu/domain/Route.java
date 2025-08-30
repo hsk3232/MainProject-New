@@ -27,12 +27,12 @@ public class Route {
     private Long roadId;
     private String fromScanLocation;
     private String toScanLocation;
-    // 🔹 출발지 연관 매핑
+    // 출발지 연관 매핑
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "from_location_id")
     private Location fromLocationId;
 
-    // 🔹 도착지 연관 매핑
+    // 도착지 연관 매핑
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "to_location_id")
     private Location toLocationId;

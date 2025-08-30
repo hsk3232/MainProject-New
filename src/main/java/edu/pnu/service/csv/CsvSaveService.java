@@ -37,7 +37,6 @@ import edu.pnu.domain.EventHistory;
 import edu.pnu.domain.Location;
 import edu.pnu.domain.Member;
 import edu.pnu.domain.Product;
-import edu.pnu.dto.dataShare.ImportDatafromAiDTO;
 import edu.pnu.exception.BadRequestException;
 import edu.pnu.exception.CsvFileNotFoundException;
 import edu.pnu.exception.CsvFileSaveToDiskException;
@@ -48,7 +47,6 @@ import edu.pnu.repo.EpcRepository;
 import edu.pnu.repo.LocationRepository;
 import edu.pnu.repo.MemberRepository;
 import edu.pnu.repo.ProductRepository;
-import edu.pnu.service.datashare.DataApplyService;
 import edu.pnu.service.datashare.DataShareService;
 import edu.pnu.service.statistics.StatisticsAdminService;
 import edu.pnu.websocket.WebSocketService;
@@ -73,7 +71,6 @@ public class CsvSaveService {
 	private final CsvSaveBatchService csvSaveBatchService; // JdbcTemplate batch insert
 	private final DataShareService dataShareService;
 	private final WebSocketService webSocketService;
-	private final DataApplyService dataApplyService;
 
 	private final int chunkSize = 1000; // 한 번에 읽어 처리할 row 수 (청크 단위)
 	
